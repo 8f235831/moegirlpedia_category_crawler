@@ -32,7 +32,7 @@ public class HttpUtils
 	{
 		// 日志拦截器
 		HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-		logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+		logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
 
 		// 设置缓存路径，内置存储。
 		File httpCacheDirectory = new File("./.cache", "responses");

@@ -3,3 +3,5 @@
 /build/
 /root3/
 /.cache/responses/
+/output/
+/src/test/

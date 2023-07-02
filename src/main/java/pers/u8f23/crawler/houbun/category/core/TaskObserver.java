@@ -15,17 +15,16 @@ import java.util.function.Consumer;
 public final class TaskObserver<T> implements SingleObserver<T>
 {
 	private final Consumer<T> onSuccess;
-	private final Runnable onSubscribe;
 	private final Runnable onFinish;
 
 	public TaskObserver(
 		@NonNull Consumer<T> onSuccess,
-		@NonNull Runnable onSubscribe,
+		@NonNull Runnable onCreate,
 		@NonNull Runnable onFinish
 	)
 	{
+		onCreate.run();
 		this.onSuccess = onSuccess;
-		this.onSubscribe = onSubscribe;
 		this.onFinish = onFinish;
 	}
 
@@ -33,7 +32,6 @@ public final class TaskObserver<T> implements SingleObserver<T>
 	public void onSubscribe(@NonNull Disposable d)
 	{
 		// nop
-		onSubscribe.run();
 	}
 
 	@Override

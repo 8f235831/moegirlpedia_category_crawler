@@ -18,9 +18,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * @author 8f23
@@ -29,16 +27,29 @@ import java.util.function.Supplier;
 @Slf4j
 public final class Crawler
 {
+	private static final int TIMER_COUNTER_INIT_NUM = 10;
+
 	private final ScheduledThreadPoolExecutor parserPool = new ScheduledThreadPoolExecutor(10);
-	private final AtomicInteger unfinishedTaskCounter = new AtomicInteger(0);
+	private int uploadTaskCounter = 0;
+	private int finishedTaskCounter = 0;
+	private int timerCounter = TIMER_COUNTER_INIT_NUM;
 	private final Map<String, Set<String>> result;
 	private final String outputFilePath;
+	private final Set<String> traversedSet = Collections.synchronizedSet(new HashSet<>());
 
 	public Crawler(@NonNull String rootCateTitle, @NonNull String outputFilePath)
 	{
-		addFirst(rootCateTitle);
 		result = Collections.synchronizedMap(new HashMap<>());
 		this.outputFilePath = outputFilePath;
+		new Timer().scheduleAtFixedRate(new TimerTask()
+		{
+			@Override
+			public void run()
+			{
+				handleTimer();
+			}
+		}, 0, 1000);
+		addFirst(rootCateTitle);
 	}
 
 	public void addFirst(String rootCateTitle)
@@ -56,15 +67,38 @@ public final class Crawler
 		));
 	}
 
-	private void handleTaskSubscribe()
+	private void handleTaskCreate()
 	{
-		unfinishedTaskCounter.incrementAndGet();
+		synchronized (this)
+		{
+			uploadTaskCounter++;
+		}
 	}
 
 	private void handleTaskFinish()
 	{
-		int currTask = unfinishedTaskCounter.decrementAndGet();
+		synchronized (this)
+		{
+			finishedTaskCounter++;
+		}
+	}
+
+	private void handleTimer()
+	{
+		int currTask;
+		synchronized (this)
+		{
+			currTask = uploadTaskCounter - finishedTaskCounter;
+		}
 		if (currTask <= 0)
+		{
+			timerCounter--;
+		}
+		else
+		{
+			timerCounter++;
+		}
+		if (timerCounter <= 0)
 		{
 			try (OutputStream outputStream = new FileOutputStream(outputFilePath))
 			{
@@ -72,16 +106,30 @@ public final class Crawler
 			}
 			catch (Exception e)
 			{
-				log.error("Failed to print result");
+				log.error("Failed to print result", e);
 			}
 			log.info("Succeed to finish.");
 			System.exit(0);
 		}
+		log.info("Exist task: {}", currTask);
 	}
 
 	private void requestPage(
 		@NonNull String title, @NonNull Consumer<Response<ResponseBody>> consumer)
 	{
+		if (title.startsWith("/"))
+		{
+			title = title.substring(1);
+		}
+		if (!title.startsWith("Category:"))
+		{
+			title = "Category:" + title;
+		}
+		if (traversedSet.contains(title))
+		{
+			return;
+		}
+		traversedSet.add(title);
 		log.info("Request page: '{}'", title);
 		HttpService.getInstance()
 			.get(title)
@@ -89,7 +137,7 @@ public final class Crawler
 			.observeOn(Schedulers.from(parserPool))
 			.subscribe(new TaskObserver<>(
 				consumer,
-				this::handleTaskSubscribe,
+				this::handleTaskCreate,
 				this::handleTaskFinish
 			));
 	}
@@ -128,8 +176,7 @@ public final class Crawler
 			subPageTitles.forEach(handleSubPage);
 
 			log.info("Page '{}' handled, {} sub-category(ies) found, {} sub-page(s) found.",
-				(Supplier<String>) () -> generateFullPath(
-					response.raw().request().url().pathSegments()),
+				generateFullPath(response.raw().request().url().pathSegments()),
 				subCateTitles.size(),
 				subPageTitles.size()
 			);
@@ -146,7 +193,7 @@ public final class Crawler
 		Elements linkElements = root.select("a");
 		for (Element linkElement : linkElements)
 		{
-			String link = linkElement.attr("abs:href");
+			String link = linkElement.attr("href");
 			if (!link.isEmpty())
 			{
 				result.add(link.substring(1));

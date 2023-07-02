@@ -13,10 +13,12 @@ import pers.u8f23.crawler.houbun.category.core.Crawler;
 public class Main
 {
 	private static final String ROOT_PAGE_TITLE = "Category:芳文社";
-	private static final String OUTPUT_FILE_PATH = "./output/result.json";
+	private static final String OUTPUT_FILE_PATH =
+		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\result.json";
 
-	public static void main(String[] args)
+	public static void main(String[] args) throws InterruptedException
 	{
 		new Crawler(ROOT_PAGE_TITLE, OUTPUT_FILE_PATH);
+		Thread.sleep(Long.MAX_VALUE);
 	}
 }
