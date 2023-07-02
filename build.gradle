@@ -38,8 +38,6 @@ dependencies {
     // https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
     implementation 'io.reactivex.rxjava3:rxjava:3.1.6'
 
-
-
     // Gson
     implementation 'com.google.code.gson:gson:2.10.1'
 
@@ -49,6 +47,8 @@ dependencies {
     implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.10.0'
 
+    // HTML解析 https://mvnrepository.com/artifact/org.jsoup/jsoup
+    implementation 'org.jsoup:jsoup:1.16.1'
 }
 
 test {

@@ -1,9 +1,7 @@
 package pers.u8f23.crawler.houbun.category;
 
 import okhttp3.Cache;
-import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
 import retrofit2.adapter.rxjava3.RxJava3CallAdapterFactory;
@@ -19,9 +17,9 @@ import java.util.concurrent.TimeUnit;
 public class HttpUtils
 {
 	/**
-	 * 缓存大小，20M。
+	 * 缓存大小，512M。
 	 */
-	public static final int MAX_CACHE_SIZE = 20 * 1024 * 1024;
+	public static final int MAX_CACHE_SIZE = 512 * 1024 * 1024;
 	/**
 	 * 请求10秒则超时。
 	 */
