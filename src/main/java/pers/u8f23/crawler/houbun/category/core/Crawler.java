@@ -15,6 +15,7 @@ import retrofit2.Response;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -35,7 +36,7 @@ public final class Crawler
 	private int timerCounter = TIMER_COUNTER_INIT_NUM;
 	private final Map<String, Set<String>> result;
 	private final String outputFilePath;
-	private final Set<String> traversedSet = Collections.synchronizedSet(new HashSet<>());
+	private final Set<String> traversedSet = new HashSet<>();
 
 	public Crawler(@NonNull String rootCateTitle, @NonNull String outputFilePath)
 	{
@@ -125,11 +126,14 @@ public final class Crawler
 		{
 			title = "Category:" + title;
 		}
-		if (traversedSet.contains(title))
+		synchronized (traversedSet)
 		{
-			return;
+			if (traversedSet.contains(title))
+			{
+				return;
+			}
+			traversedSet.add(title);
 		}
-		traversedSet.add(title);
 		log.info("Request page: '{}'", title);
 		HttpService.getInstance()
 			.get(title)
@@ -196,6 +200,14 @@ public final class Crawler
 			String link = linkElement.attr("href");
 			if (!link.isEmpty())
 			{
+				try
+				{
+					link = URLDecoder.decode(link, "UTF-8");
+				}
+				catch (Exception ignored)
+				{
+				}
+				// remove char '/'
 				result.add(link.substring(1));
 			}
 		}
