@@ -1,0 +1,60 @@
+buildscript {
+    apply from: './define.gradle'
+    //noinspection GroovyAssignabilityCheck
+    addRepos(repositories) //增加代码仓库
+}
+
+plugins {
+    id 'java'
+}
+
+group 'pers.u8f23.medi_request_javafx'
+version '1.0-SNAPSHOT'
+
+apply from: './define.gradle'
+//noinspection GroovyAssignabilityCheck
+addRepos(repositories) //增加代码仓库
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.2'
+
+    // project lombok
+    compileOnly 'org.projectlombok:lombok:1.18.26'
+    annotationProcessor 'org.projectlombok:lombok:1.18.26'
+    testCompileOnly 'org.projectlombok:lombok:1.18.26'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.26'
+
+    // https://mvnrepository.com/artifact/com.alibaba.fastjson2/fastjson2
+    implementation 'com.alibaba.fastjson2:fastjson2:2.0.27'
+
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+    implementation 'org.slf4j:slf4j-api:2.0.6'
+    annotationProcessor 'org.slf4j:slf4j-api:2.0.6'
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
+    implementation 'org.slf4j:slf4j-simple:2.0.6'
+    annotationProcessor 'org.slf4j:slf4j-simple:2.0.6'
+
+    // https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
+    implementation 'io.reactivex.rxjava3:rxjava:3.1.6'
+
+
+
+    // Gson
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // 网络请求
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.7.2'
+    implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.10.0'
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+repositories {
+    mavenCentral()
+}

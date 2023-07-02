@@ -1,0 +1,16 @@
+static def addRepos(RepositoryHandler handler) {
+    handler.mavenLocal()
+    handler.maven { url 'LocalRepository' }
+    handler.maven { url 'https://maven.aliyun.com/repository/public/' }
+    handler.maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+    handler.maven { url 'https://repo.huaweicloud.com/repository/maven/' }
+    handler.maven { url 'https://repo.nju.edu.cn/repository/maven-public/' }
+    handler.maven { url 'https://maven.aliyun.com/repository/spring/' }
+    handler.maven { url 'https://maven.aliyun.com/repository/spring-plugin' }
+    handler.maven { url 'https://maven.aliyun.com/repository/google' }
+    handler.maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    handler.maven { url 'https://maven.aliyun.com/repository/grails-core' }
+    handler.maven { url 'https://maven.aliyun.com/repository/apache-snapshots' }
+    handler.mavenCentral()
+}
+ext.addRepos = this.&addRepos
