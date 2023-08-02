@@ -63,7 +63,7 @@ public final class Crawler
 	private void traverseCate(String rootTitle, Consumer<String> handleSubPage)
 	{
 		requestPage(rootTitle, parseCatePage(
-			(title) -> traverseCate(rootTitle, handleSubPage),
+			(title) -> traverseCate(title, handleSubPage),
 			handleSubPage
 		));
 	}
@@ -178,7 +178,6 @@ public final class Crawler
 			List<String> subPageTitles =
 				findAllLinks(document.select("#mw-pages").first());
 			subPageTitles.forEach(handleSubPage);
-
 			log.info("Page '{}' handled, {} sub-category(ies) found, {} sub-page(s) found.",
 				generateFullPath(response.raw().request().url().pathSegments()),
 				subCateTitles.size(),
