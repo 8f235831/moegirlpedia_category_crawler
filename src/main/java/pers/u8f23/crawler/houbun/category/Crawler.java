@@ -69,7 +69,7 @@ public final class Crawler
 				path.startsWith("Category:")
 					? HomeSiteService.getInstance().get(path)
 					: HomeSiteService.getInstance().getUrl(path);
-			single.subscribeOn(Schedulers.single())
+			single.subscribeOn(provideRequestScheduler())
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.doOnSuccess(set -> set.forEach(i -> requestRootCate(root, i)))
@@ -108,7 +108,7 @@ public final class Crawler
 					? HomeSiteService.getInstance().get(path)
 					: HomeSiteService.getInstance().getUrl(path);
 			single
-				.subscribeOn(Schedulers.single())
+				.subscribeOn(provideRequestScheduler())
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.doOnSuccess(set -> set.forEach(i -> requestWorkCate(root, i)))
@@ -180,19 +180,20 @@ public final class Crawler
 		requestingCounter.incrementAndGet();
 		HomeSiteService.getInstance()
 			.getCategories(workName)
-			.subscribeOn(Schedulers.single())
+			.subscribeOn(provideRequestScheduler())
 			.observeOn(Schedulers.computation())
 			.map(HttpUtils::parseResponse)
 			.map(ApiBaseResponse::getQuery)
 			.map(Query::flat)
 			.doOnSuccess(map -> map.forEach((k, vs) -> vs.forEach(v ->
-				{
-					resultSet.computeIfAbsent(k, k1 -> new HashSet<>()).add(v);
-					log.debug("query creators result:[{}, {}]", k, v);
-				}
+				submitItem(k, v)
 			)))
 			.doAfterTerminate(requestingCounter::decrementAndGet)
 			.retry(RETRY_TIMES)
 			.subscribe();
+	}
+
+	private Scheduler provideRequestScheduler(){
+		return Schedulers.single();
 	}
 }
