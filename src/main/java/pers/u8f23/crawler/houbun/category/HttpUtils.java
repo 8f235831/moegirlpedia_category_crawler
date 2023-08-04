@@ -15,10 +15,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 import java.io.IOException;
 import java.net.URLDecoder;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -30,7 +27,7 @@ public class HttpUtils
 	/**
 	 * 请求10秒则超时。
 	 */
-	public static final int TIME_OUT = 10;
+	public static final int TIME_OUT = 3;
 	public static final String BASE_URL = "https://zh.moegirl.org.cn";
 
 	private static final Retrofit SERVICE_CREATOR;
@@ -39,7 +36,7 @@ public class HttpUtils
 	{
 		// 日志拦截器
 		HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-		logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+		logging.setLevel(HttpLoggingInterceptor.Level.NONE);
 
 		OkHttpClient client = new OkHttpClient.Builder()
 			.addInterceptor(logging)
@@ -93,6 +90,12 @@ public class HttpUtils
 		resultSet.addAll(findAllLinks(document.select("#mw-subcategories").first()));
 		resultSet.addAll(findAllLinks(document.select("#mw-pages").first()));
 		return resultSet;
+	}
+
+	public static <T> T parseResponse(Response<T> rawResponse)
+	{
+		T body = Objects.requireNonNull(rawResponse).body();
+		return Objects.requireNonNull(body);
 	}
 
 	private static List<String> findAllLinks(Element root)

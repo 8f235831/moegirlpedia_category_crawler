@@ -2,6 +2,8 @@ package pers.u8f23.crawler.houbun.category;
 
 import io.reactivex.rxjava3.core.Single;
 import okhttp3.ResponseBody;
+import pers.u8f23.crawler.houbun.category.response.ApiBaseResponse;
+import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 import retrofit2.http.GET;
 import retrofit2.http.Path;
@@ -15,7 +17,10 @@ public interface HomeSiteService
 {
 	@GET ("/{title}")
 	Single<Response<ResponseBody>> get(@Path ("title") String pageTitle);
+	@GET
 	Single<Response<ResponseBody>> getUrl(@Url String url);
+	@GET ("/api.php?action=query&prop=categories&format=json")
+	Single<Response<ApiBaseResponse<Query>>> getCategories(@retrofit2.http.Query ("titles") String pageTitle);
 
 	static HomeSiteService getInstance()
 	{

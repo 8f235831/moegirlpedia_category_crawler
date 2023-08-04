@@ -5,7 +5,10 @@ import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.ResponseBody;
+import pers.u8f23.crawler.houbun.category.response.ApiBaseResponse;
+import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 
 import java.io.FileOutputStream;
@@ -18,8 +21,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author 8f23
  * @create 2023/8/4-20:23
  */
+@Slf4j
 public final class Crawler
 {
+	private static final int RETRY_TIMES = 10;
 	private final Map<String, Set<String>> resultSet = new HashMap<>();
 	private final Set<String> visitedSet = Collections.synchronizedSet(new HashSet<>());
 	private final AtomicInteger requestingCounter = new AtomicInteger(0);
@@ -27,7 +32,7 @@ public final class Crawler
 	private final String outputFilePath;
 	private final String outputSimplifiedFilePath;
 	@Getter
-	private volatile boolean finished = false;
+	private volatile boolean mainPagesFinished = false;
 
 
 	public Crawler(
@@ -39,16 +44,16 @@ public final class Crawler
 		this.outputFilePath = outputFilePath;
 		this.outputSimplifiedFilePath = outputSimplifiedFilePath;
 		requestRootCate(rootCateTitle, rootCateTitle);
-		Completable.fromAction(this::tryPrintAll)
+		Completable.fromAction(this::afterMainPages)
 			.delay(1, TimeUnit.SECONDS)
-			.repeatUntil(() -> finished)
+			.repeatUntil(() -> mainPagesFinished)
 			.subscribeOn(Schedulers.newThread())
 			.subscribe();
 	}
 
 	private void requestRootCate(String root, String path)
 	{
-		if (path == null)
+		if (path == null || path.startsWith("User:"))
 		{
 			return;
 		}
@@ -64,12 +69,13 @@ public final class Crawler
 				path.startsWith("Category:")
 					? HomeSiteService.getInstance().get(path)
 					: HomeSiteService.getInstance().getUrl(path);
-			single.subscribeOn(Schedulers.io())
+			single.subscribeOn(Schedulers.single())
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.doOnSuccess(set -> set.forEach(i -> requestRootCate(root, i)))
 				.doAfterTerminate(() -> visitedSet.add(path))
 				.doAfterTerminate(requestingCounter::decrementAndGet)
+				.retry(RETRY_TIMES)
 				.subscribe();
 		}
 		else
@@ -78,13 +84,14 @@ public final class Crawler
 			// add to the result set.
 			submitItem(root, path);
 			// request work.
+			queryCreators(path);
 			this.requestWorkCate(path, "Category:" + path);
 		}
 	}
 
 	private void requestWorkCate(String root, String path)
 	{
-		if (path == null)
+		if (path == null || path.startsWith("User:"))
 		{
 			return;
 		}
@@ -101,12 +108,13 @@ public final class Crawler
 					? HomeSiteService.getInstance().get(path)
 					: HomeSiteService.getInstance().getUrl(path);
 			single
-				.subscribeOn(Schedulers.io())
+				.subscribeOn(Schedulers.single())
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.doOnSuccess(set -> set.forEach(i -> requestWorkCate(root, i)))
 				.doAfterTerminate(() -> visitedSet.add(path))
 				.doAfterTerminate(requestingCounter::decrementAndGet)
+				.retry(RETRY_TIMES)
 				.subscribe();
 		}
 		else
@@ -133,7 +141,7 @@ public final class Crawler
 			.subscribe();
 	}
 
-	private void tryPrintAll() throws Exception
+	private void afterMainPages() throws Exception
 	{
 		if (requestingCounter.get() > 0)
 		{
@@ -158,6 +166,33 @@ public final class Crawler
 				ps.println(line);
 			}
 		}
-		finished = true;
+		mainPagesFinished = true;
+	}
+
+	private void queryCreators(String workName)
+	{
+		if (workName.startsWith("User:")
+		    || workName.startsWith("index.php?title=Category:"))
+		{
+			// ignore
+			return;
+		}
+		requestingCounter.incrementAndGet();
+		HomeSiteService.getInstance()
+			.getCategories(workName)
+			.subscribeOn(Schedulers.single())
+			.observeOn(Schedulers.computation())
+			.map(HttpUtils::parseResponse)
+			.map(ApiBaseResponse::getQuery)
+			.map(Query::flat)
+			.doOnSuccess(map -> map.forEach((k, vs) -> vs.forEach(v ->
+				{
+					resultSet.computeIfAbsent(k, k1 -> new HashSet<>()).add(v);
+					log.debug("query creators result:[{}, {}]", k, v);
+				}
+			)))
+			.doAfterTerminate(requestingCounter::decrementAndGet)
+			.retry(RETRY_TIMES)
+			.subscribe();
 	}
 }
