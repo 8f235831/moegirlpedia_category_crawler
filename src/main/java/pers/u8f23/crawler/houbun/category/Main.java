@@ -1,7 +1,10 @@
 package pers.u8f23.crawler.houbun.category;
 
+import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import lombok.extern.slf4j.Slf4j;
-import pers.u8f23.crawler.houbun.category.core.Crawler;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * 入口主函数。
@@ -14,11 +17,18 @@ public class Main
 {
 	private static final String ROOT_PAGE_TITLE = "Category:芳文社";
 	private static final String OUTPUT_FILE_PATH =
-		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\result.json";
+		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\result_%s.json";
+	private static final String OUTPUT_SIMPLIFIED_FILE_PATH =
+		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\simplified_%s.txt";
 
-	public static void main(String[] args) throws InterruptedException
+	public static void main(String[] args)
 	{
-		new Crawler(ROOT_PAGE_TITLE, OUTPUT_FILE_PATH);
-		Thread.sleep(Long.MAX_VALUE);
+		RxJavaPlugins.setErrorHandler((th) -> log.info("global rxjava error catch: ", th));
+		String timeStr = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+		new Crawler(
+			ROOT_PAGE_TITLE,
+			String.format(OUTPUT_FILE_PATH, timeStr),
+			String.format(OUTPUT_SIMPLIFIED_FILE_PATH, timeStr)
+		);
 	}
 }

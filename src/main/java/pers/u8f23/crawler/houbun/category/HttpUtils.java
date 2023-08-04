@@ -1,13 +1,24 @@
 package pers.u8f23.crawler.houbun.category;
 
-import okhttp3.Cache;
+import lombok.NonNull;
 import okhttp3.OkHttpClient;
+import okhttp3.ResponseBody;
 import okhttp3.logging.HttpLoggingInterceptor;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.adapter.rxjava3.RxJava3CallAdapterFactory;
 import retrofit2.converter.gson.GsonConverterFactory;
 
-import java.io.File;
+import java.io.IOException;
+import java.net.URLDecoder;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -17,13 +28,9 @@ import java.util.concurrent.TimeUnit;
 public class HttpUtils
 {
 	/**
-	 * 缓存大小，512M。
-	 */
-	public static final int MAX_CACHE_SIZE = 512 * 1024 * 1024;
-	/**
 	 * 请求10秒则超时。
 	 */
-	public static final int TIME_OUT = 10 * 1000;
+	public static final int TIME_OUT = 10;
 	public static final String BASE_URL = "https://zh.moegirl.org.cn";
 
 	private static final Retrofit SERVICE_CREATOR;
@@ -32,18 +39,11 @@ public class HttpUtils
 	{
 		// 日志拦截器
 		HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-		logging.setLevel(HttpLoggingInterceptor.Level.NONE);
-
-		// 设置缓存路径，内置存储。
-		File httpCacheDirectory = new File("./.cache", "responses");
-		// 外部存储
-		Cache cache = new Cache(httpCacheDirectory, MAX_CACHE_SIZE);
+		logging.setLevel(HttpLoggingInterceptor.Level.BODY);
 
 		OkHttpClient client = new OkHttpClient.Builder()
-			.cache(cache)
 			.addInterceptor(logging)
 			.connectTimeout(TIME_OUT, TimeUnit.SECONDS)
-			.retryOnConnectionFailure(true)
 			.build();
 
 		SERVICE_CREATOR = new Retrofit.Builder()
@@ -65,4 +65,60 @@ public class HttpUtils
 		return SERVICE_CREATOR.create(clazz);
 	}
 
+	@NonNull
+	public static Set<String> parseRawHtmlCategoryPage(Response<ResponseBody> rawResponse)
+	{
+		Set<String> resultSet = new HashSet<>();
+		if (rawResponse == null)
+		{
+			return resultSet;
+		}
+		String content = null;
+		try (ResponseBody body = rawResponse.body())
+		{
+			if (body == null)
+			{
+				return resultSet;
+			}
+			content = body.string();
+		}
+		catch (IOException ignored)
+		{
+		}
+		if (content == null)
+		{
+			return resultSet;
+		}
+		Document document = Jsoup.parse(content);
+		resultSet.addAll(findAllLinks(document.select("#mw-subcategories").first()));
+		resultSet.addAll(findAllLinks(document.select("#mw-pages").first()));
+		return resultSet;
+	}
+
+	private static List<String> findAllLinks(Element root)
+	{
+		LinkedList<String> result = new LinkedList<>();
+		if (root == null)
+		{
+			return result;
+		}
+		Elements linkElements = root.select("a");
+		for (Element linkElement : linkElements)
+		{
+			String link = linkElement.attr("href");
+			if (!link.isEmpty())
+			{
+				try
+				{
+					link = URLDecoder.decode(link, "UTF-8");
+				}
+				catch (Exception ignored)
+				{
+				}
+				// remove char '/'
+				result.add(link.substring(1));
+			}
+		}
+		return result;
+	}
 }

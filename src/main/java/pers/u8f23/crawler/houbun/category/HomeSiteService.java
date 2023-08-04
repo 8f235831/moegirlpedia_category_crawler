@@ -5,30 +5,32 @@ import okhttp3.ResponseBody;
 import retrofit2.Response;
 import retrofit2.http.GET;
 import retrofit2.http.Path;
+import retrofit2.http.Url;
 
 /**
  * @author 8f23
  * @create 2023/7/2-17:09
  */
-public interface HttpService
+public interface HomeSiteService
 {
 	@GET ("/{title}")
 	Single<Response<ResponseBody>> get(@Path ("title") String pageTitle);
+	Single<Response<ResponseBody>> getUrl(@Url String url);
 
-	static HttpService getInstance()
+	static HomeSiteService getInstance()
 	{
-		HttpService localInstance = HttpServiceHolder.instance;
+		HomeSiteService localInstance = HttpServiceHolder.instance;
 		if (localInstance != null)
 		{
 			return localInstance;
 		}
-		HttpServiceHolder.instance = localInstance = HttpUtils.buildService(HttpService.class);
+		HttpServiceHolder.instance = localInstance = HttpUtils.buildService(HomeSiteService.class);
 		return localInstance;
 	}
 
 	class HttpServiceHolder
 	{
-		private static HttpService instance;
+		private static HomeSiteService instance;
 	}
 }
 
