@@ -1,0 +1,16 @@
+{
+  "outputFilePath": "/hdd/houbun-backup/output/result_%s.json",
+  "outputSimplifiedFilePath": "/hdd/houbun-backup/output/simplified_%s.txt",
+  "backupFilePath": "/hdd/houbun-backup/output/backup_%s.xml",
+  "rootCateTitle": "Category:芳文社",
+  "mailConfig": {
+    "emailHost": "smtp.example.com",
+    "transportType": "smtp",
+    "fromUser": "Backup Service for MGP",
+    "fromEmail": "from@example.com",
+    "authCode": "email_password",
+    "toEmail": "to@example.com",
+    "copyToEmail": [],
+    "subject": "MGP Backup Report"
+  }
+}
