@@ -24,42 +24,51 @@ import java.util.concurrent.TimeUnit;
  */
 public class HttpUtils
 {
-	/**
-	 * 请求10秒则超时。
-	 */
-	public static final int TIME_OUT = 3;
-	public static final String BASE_URL = "https://zh.moegirl.org.cn";
+	public static final int HOME_SITE_TIME_OUT = 3;
+	public static final int MIRROR_SITE_TIME_OUT = 5 * 60;
+	public static final String HOME_SITE_BASE_URL = "https://zh.moegirl.org.cn";
+	public static final String MIRROR_SITE_BASE_URL = "https://moegirl.uk";
 
-	private static final Retrofit SERVICE_CREATOR;
+	private static final Retrofit HOME_SITE_SERVICE_CREATOR;
+	private static final Retrofit MIRROR_SITE_SERVICE_CREATOR;
 
 	static
 	{
 		// 日志拦截器
 		HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-		logging.setLevel(HttpLoggingInterceptor.Level.NONE);
+		logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
 
-		OkHttpClient client = new OkHttpClient.Builder()
+		OkHttpClient homeSiteClient = new OkHttpClient.Builder()
 			.addInterceptor(logging)
-			.connectTimeout(TIME_OUT, TimeUnit.SECONDS)
+			.connectTimeout(HOME_SITE_TIME_OUT, TimeUnit.SECONDS)
+			.build();
+		HOME_SITE_SERVICE_CREATOR = new Retrofit.Builder()
+			.addConverterFactory(GsonConverterFactory.create())
+			.baseUrl(HOME_SITE_BASE_URL)
+			.addCallAdapterFactory(RxJava3CallAdapterFactory.create())
+			.client(homeSiteClient)
 			.build();
 
-		SERVICE_CREATOR = new Retrofit.Builder()
+		OkHttpClient mirrorSiteClient = new OkHttpClient.Builder()
+			.addInterceptor(logging)
+			.connectTimeout(MIRROR_SITE_TIME_OUT, TimeUnit.SECONDS)
+			.build();
+		MIRROR_SITE_SERVICE_CREATOR = new Retrofit.Builder()
 			.addConverterFactory(GsonConverterFactory.create())
-			.baseUrl(BASE_URL)
+			.baseUrl(MIRROR_SITE_BASE_URL)
 			.addCallAdapterFactory(RxJava3CallAdapterFactory.create())
-			.client(client)
+			.client(mirrorSiteClient)
 			.build();
 	}
 
-	/**
-	 * 直接请求内容，内容不会置入缓存。离线不可用。
-	 *
-	 * @param clazz Retrofit接口类，应继承自<code>BaseHttpService</code> 。
-	 * @return 接口实例。
-	 */
-	public static <S> S buildService(Class<S> clazz)
+	public static <S> S buildHomeSiteService(Class<S> clazz)
 	{
-		return SERVICE_CREATOR.create(clazz);
+		return HOME_SITE_SERVICE_CREATOR.create(clazz);
+	}
+
+	public static <S> S buildMirrorSiteService(Class<S> clazz)
+	{
+		return MIRROR_SITE_SERVICE_CREATOR.create(clazz);
 	}
 
 	@NonNull

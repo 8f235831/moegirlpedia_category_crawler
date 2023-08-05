@@ -29,7 +29,7 @@ public interface HomeSiteService
 		{
 			return localInstance;
 		}
-		HttpServiceHolder.instance = localInstance = HttpUtils.buildService(HomeSiteService.class);
+		HttpServiceHolder.instance = localInstance = HttpUtils.buildHomeSiteService(HomeSiteService.class);
 		return localInstance;
 	}
 

@@ -20,6 +20,8 @@ public class Main
 		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\result_%s.json";
 	private static final String OUTPUT_SIMPLIFIED_FILE_PATH =
 		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\simplified_%s.txt";
+	private static final String BACKUP_FILE_PATH =
+		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\backup_%s.xml";
 
 	public static void main(String[] args)
 	{
@@ -28,7 +30,8 @@ public class Main
 		new Crawler(
 			ROOT_PAGE_TITLE,
 			String.format(OUTPUT_FILE_PATH, timeStr),
-			String.format(OUTPUT_SIMPLIFIED_FILE_PATH, timeStr)
+			String.format(OUTPUT_SIMPLIFIED_FILE_PATH, timeStr),
+			String.format(BACKUP_FILE_PATH, timeStr)
 		);
 	}
 }

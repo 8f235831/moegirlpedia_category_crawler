@@ -12,7 +12,11 @@ import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,6 +35,7 @@ public final class Crawler
 	@NonNull
 	private final String outputFilePath;
 	private final String outputSimplifiedFilePath;
+	private final String backupFilePath;
 	@Getter
 	private volatile boolean mainPagesFinished = false;
 
@@ -38,15 +43,17 @@ public final class Crawler
 	public Crawler(
 		@NonNull String rootCateTitle,
 		@NonNull String outputFilePath,
-		@NonNull String outputSimplifiedFilePath
+		@NonNull String outputSimplifiedFilePath,
+		@NonNull String backupFilePath
 	)
 	{
 		this.outputFilePath = outputFilePath;
 		this.outputSimplifiedFilePath = outputSimplifiedFilePath;
+		this.backupFilePath = backupFilePath;
 		requestRootCate(rootCateTitle, rootCateTitle);
 		Completable.fromAction(this::afterMainPages)
 			.delay(1, TimeUnit.SECONDS)
-			.repeatUntil(() -> mainPagesFinished)
+			.repeatUntil(() -> mainPagesFinished || requestingCounter.get() <= 0)
 			.subscribeOn(Schedulers.newThread())
 			.subscribe();
 	}
@@ -159,13 +166,19 @@ public final class Crawler
 		});
 		List<String> simplifiedList = new ArrayList<>(simplifiedSet);
 		Collections.sort(simplifiedList);
+		StringBuilder titleInLinesBuilder = new StringBuilder();
+		for (String line : simplifiedList)
+		{
+			titleInLinesBuilder.append(line);
+			titleInLinesBuilder.append("\n");
+		}
+		String titleInLines = titleInLinesBuilder.toString();
 		try (PrintStream ps = new PrintStream(this.outputSimplifiedFilePath))
 		{
-			for (String line : simplifiedList)
-			{
-				ps.println(line);
-			}
+			ps.print(titleInLines);
 		}
+		// request backupFile
+		queryBackup(titleInLines);
 		mainPagesFinished = true;
 	}
 
@@ -193,7 +206,38 @@ public final class Crawler
 			.subscribe();
 	}
 
-	private Scheduler provideRequestScheduler(){
+	private void queryBackup(String titleInLines)
+	{
+		requestingCounter.incrementAndGet();
+
+		MirrorSiteService.getInstance()
+			.requestMirror(titleInLines, "1", "1", "+\\", "Special:导出页面")
+			.subscribeOn(provideRequestScheduler())
+			.observeOn(Schedulers.computation())
+			.doAfterSuccess(res -> {
+				ResponseBody body = res.body();
+				if (body != null)
+				{
+					body.close();
+				}
+			})
+			.map(res -> Objects.requireNonNull(res.body()).byteString()
+				.string(StandardCharsets.UTF_8))
+			.observeOn(Schedulers.io())
+			.doOnSuccess(string -> {
+				try (OutputStream fos = Files.newOutputStream(Paths.get(backupFilePath)))
+				{
+					fos.write(string.getBytes(StandardCharsets.UTF_8));
+				}
+			})
+			.doAfterTerminate(requestingCounter::decrementAndGet)
+			.retry(RETRY_TIMES)
+			.subscribe();
+
+	}
+
+	private Scheduler provideRequestScheduler()
+	{
 		return Schedulers.single();
 	}
 }
