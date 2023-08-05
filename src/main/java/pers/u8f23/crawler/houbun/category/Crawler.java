@@ -241,11 +241,11 @@ public final class Crawler
 					}
 				}
 				log.info("finish backup.");
-				sendReportEmail(true);
+				sendReportEmail(true, null);
 			})
 			.doOnError((th) -> {
 				log.info("Failed to query backup.", th);
-				sendReportEmail(false);
+				sendReportEmail(false, th);
 			})
 			.doFinally(requestingCounter::decrementAndGet)
 			.doFinally(() -> log.info("queryBackup final:{}", titleInLines))
@@ -302,7 +302,7 @@ public final class Crawler
 				.append(getBackupFileSize()).append("] bytes.</div>")
 				.append("<hr/>")
 				.append("<div>list:</div><ol>");
-			if (!success)
+			if (!success && reason != null)
 			{
 				ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream(1024 * 16);
 				reason.printStackTrace(new PrintStream(arrayOutputStream));
