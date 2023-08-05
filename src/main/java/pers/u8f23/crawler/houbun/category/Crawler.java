@@ -8,7 +8,6 @@ import jakarta.mail.Session;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ResponseBody;
@@ -18,11 +17,7 @@ import pers.u8f23.crawler.houbun.category.response.ApiBaseResponse;
 import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -37,13 +32,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class Crawler
 {
 	private static final int RETRY_TIMES = 10;
+	private static final int BACKUP_BUFFER_SIZE = 1024 * 4;
 	private final Map<String, Set<String>> resultSet = new HashMap<>();
 	private final Set<String> visitedSet = Collections.synchronizedSet(new HashSet<>());
 	private final AtomicInteger requestingCounter = new AtomicInteger(0);
 	@NonNull
 	private final RootConfig config;
-	@Getter
-	private volatile boolean mainPagesFinished = false;
+	private volatile boolean mainPagesStarted = false;
 	private List<String> simplifiedList;
 
 
@@ -55,7 +50,7 @@ public final class Crawler
 		requestRootCate(config.getRootCateTitle(), config.getRootCateTitle());
 		Completable.fromAction(this::afterMainPages)
 			.delay(1, TimeUnit.SECONDS)
-			.repeatUntil(() -> mainPagesFinished || requestingCounter.get() <= 0)
+			.repeatUntil(() -> mainPagesStarted)
 			.subscribeOn(Schedulers.newThread())
 			.subscribe();
 	}
@@ -82,8 +77,8 @@ public final class Crawler
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.doOnSuccess(set -> set.forEach(i -> requestRootCate(root, i)))
-				.doAfterTerminate(() -> visitedSet.add(path))
-				.doAfterTerminate(requestingCounter::decrementAndGet)
+				.doFinally(() -> visitedSet.add(path))
+				.doFinally(requestingCounter::decrementAndGet)
 				.retry(RETRY_TIMES)
 				.subscribe();
 		}
@@ -153,10 +148,13 @@ public final class Crawler
 
 	private void afterMainPages() throws Exception
 	{
-		if (requestingCounter.get() > 0)
+		if (requestingCounter.get() > 0 || mainPagesStarted)
 		{
+			log.info("afterMainPages idle");
 			return;
 		}
+		mainPagesStarted = true;
+		log.info("afterMainPages run");
 		Gson gson = new Gson();
 		try (FileOutputStream fos = new FileOutputStream(this.config.getOutputFilePath()))
 		{
@@ -183,7 +181,6 @@ public final class Crawler
 		}
 		// request backupFile
 		queryBackup(titleInLines);
-		mainPagesFinished = true;
 	}
 
 	private void queryCreators(String workName)
@@ -212,34 +209,46 @@ public final class Crawler
 
 	private void queryBackup(String titleInLines)
 	{
+		log.info("queryBackup start");
 		requestingCounter.incrementAndGet();
 
 		MirrorSiteService.getInstance()
 			.requestMirror(titleInLines, "1", "1", "+\\", "Special:导出页面")
 			.subscribeOn(provideRequestScheduler())
-			.observeOn(Schedulers.computation())
-			.doAfterSuccess(res -> {
-				ResponseBody body = res.body();
-				if (body != null)
-				{
-					body.close();
-				}
-			})
-			.map(res -> Objects.requireNonNull(res.body()).byteString()
-				.string(StandardCharsets.UTF_8))
-			.observeOn(Schedulers.io())
-			.doOnSuccess(string -> {
-				try (
-					OutputStream fos =
-						Files.newOutputStream(Paths.get(config.getBackupFilePath())))
-				{
-					fos.write(string.getBytes(StandardCharsets.UTF_8));
-				}
-			})
-			.doAfterTerminate(requestingCounter::decrementAndGet)
+			.observeOn(Schedulers.newThread())
 			.retry(RETRY_TIMES)
-			.doAfterSuccess((o) -> sendReportEmail(true))
-			.doOnError((th) -> sendReportEmail(false))
+			.doOnSuccess(res -> {
+				ResponseBody body = res.body();
+				if (body == null)
+				{
+					throw new NullPointerException();
+				}
+				try (InputStream is = body.byteStream())
+				{
+					try (OutputStream fos = Files.newOutputStream(
+						Paths.get(config.getBackupFilePath())))
+					{
+						byte[] buffer = new byte[BACKUP_BUFFER_SIZE];
+						while (true)
+						{
+							int i = is.read(buffer);
+							if (i < 0)
+							{
+								break;
+							}
+							fos.write(buffer, 0, i);
+						}
+					}
+				}
+				log.info("finish backup.");
+				sendReportEmail(true);
+			})
+			.doOnError((th) -> {
+				log.info("Failed to query backup.", th);
+				sendReportEmail(false);
+			})
+			.doFinally(requestingCounter::decrementAndGet)
+			.doFinally(() -> log.info("queryBackup final:{}", titleInLines))
 			.subscribe();
 	}
 
@@ -248,8 +257,10 @@ public final class Crawler
 		return Schedulers.single();
 	}
 
-	private void sendReportEmail(boolean success)
+	private void sendReportEmail(boolean success, Throwable reason)
 	{
+		requestingCounter.incrementAndGet();
+		log.info("start to send mail for {}.", success);
 		EmailConfig config = this.config.getMailConfig();
 		String emailHost = config.getEmailHost();
 		String transportType = config.getTransportType();
@@ -257,8 +268,8 @@ public final class Crawler
 		String fromEmail = config.getFromEmail();
 		String authCode = config.getAuthCode();
 		String toEmail = config.getToEmail();
-		List<String> copyToEmail = config.getCopyToEmail();   //收件人邮箱
-		String subject = config.getSubject();           //主题信息
+		List<String> copyToEmail = config.getCopyToEmail();
+		String subject = config.getSubject();
 		try
 		{
 			Properties props = new Properties();
@@ -280,17 +291,30 @@ public final class Crawler
 			}
 			InternetAddress[] addressesArr = copyAddresses.toArray(new InternetAddress[0]);
 			message.setRecipients(Message.RecipientType.CC, addressesArr);
-			message.setSubject(subject);
+			message.setSubject((success ? "[SUCCESS] " : "[FAILURE] ") + subject);
 			StringBuilder mailContentBuilder = new StringBuilder();
 			mailContentBuilder
 				.append("<h1>").append(subject).append("</h1>")
-				.append(success ? "<h3>Success!</h3>" : "<h3>Failed!</h3>")
+				.append(success ? "<h3>Success!</h3>" : "<h3>Failure!</h3>")
 				.append("<div>Visited ").append(visitedSet.size()).append(" page(s).</div>")
-				.append("<div>Record ").append(simplifiedList.size()).append(" page(s).</div>")
-				.append("<div>Backup file length [")
+				.append("<div>Recorded ").append(simplifiedList.size()).append(" page(s).</div>")
+				.append("<div>Backup file length is [")
 				.append(getBackupFileSize()).append("] bytes.</div>")
 				.append("<hr/>")
 				.append("<div>list:</div><ol>");
+			if (!success)
+			{
+				ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream(1024 * 16);
+				reason.printStackTrace(new PrintStream(arrayOutputStream));
+				String reasonString = arrayOutputStream.toString();
+				mailContentBuilder.append("<hr/><div>Reason:</div>")
+					.append("<div>");
+				for (String line : reasonString.split("\n"))
+				{
+					mailContentBuilder.append("<div>").append(line).append("</div>");
+				}
+				mailContentBuilder.append("</div>");
+			}
 			for (String item : simplifiedList)
 			{
 				mailContentBuilder.append("<li>").append(item).append("</li>");
@@ -302,11 +326,15 @@ public final class Crawler
 			Transport transport = session.getTransport();
 			transport.connect(emailHost, fromEmail, authCode);
 			transport.sendMessage(message, message.getAllRecipients());
+			log.info("end to send mail.");
+			System.exit(0);
 		}
 		catch (Exception e)
 		{
 			log.error("Failed to send report mail!");
+			System.exit(-1);
 		}
+		requestingCounter.decrementAndGet();
 	}
 
 	private long getBackupFileSize()
