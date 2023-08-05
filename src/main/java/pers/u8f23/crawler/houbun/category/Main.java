@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import pers.u8f23.crawler.houbun.category.config.RootConfig;
 
 import java.io.File;
-import java.net.URL;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -36,8 +35,8 @@ public class Main
 	{
 		try
 		{
-			URL fileUrl = Main.class.getResource("/config.json");
-			File file = new File(fileUrl.toURI());
+			File file = new File("config.json");
+			// log.info("config path:{}", file.getAbsolutePath());
 			String configJson = new String(Files.readAllBytes(file.toPath()));
 			RootConfig config = new Gson().fromJson(configJson, RootConfig.class);
 			String timeStr = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
@@ -49,6 +48,7 @@ public class Main
 		}
 		catch (Exception e)
 		{
+			log.error("failed to read config. ",e);
 			return null;
 		}
 	}

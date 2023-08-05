@@ -141,6 +141,7 @@ public final class Crawler
 			// ignore
 			return;
 		}
+		log.info("log data:[{}, {}]", key, value);
 		Completable
 			.fromRunnable(() -> {
 				Set<String> set = resultSet.computeIfAbsent(key, k -> new HashSet<>());

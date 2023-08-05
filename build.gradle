@@ -6,6 +6,7 @@ buildscript {
 
 plugins {
     id 'java'
+    id 'application'
 }
 
 group 'pers.u8f23.medi_request_javafx'
@@ -61,4 +62,13 @@ test {
 
 repositories {
     mavenCentral()
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}
+
+application {
+    mainClass = 'pers.u8f23.crawler.houbun.category.Main'
+
 }
