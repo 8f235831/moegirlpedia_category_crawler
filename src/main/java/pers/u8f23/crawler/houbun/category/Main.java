@@ -1,8 +1,13 @@
 package pers.u8f23.crawler.houbun.category;
 
+import com.google.gson.Gson;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import lombok.extern.slf4j.Slf4j;
+import pers.u8f23.crawler.houbun.category.config.RootConfig;
 
+import java.io.File;
+import java.net.URL;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -15,23 +20,45 @@ import java.util.Date;
 @Slf4j
 public class Main
 {
-	private static final String ROOT_PAGE_TITLE = "Category:芳文社";
-	private static final String OUTPUT_FILE_PATH =
-		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\result_%s.json";
-	private static final String OUTPUT_SIMPLIFIED_FILE_PATH =
-		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\simplified_%s.txt";
-	private static final String BACKUP_FILE_PATH =
-		"D:\\Myworks\\Java\\20230702-01-moegirlpedia-houbun-category\\output\\backup_%s.xml";
-
 	public static void main(String[] args)
 	{
 		RxJavaPlugins.setErrorHandler((th) -> log.info("global rxjava error catch: ", th));
-		String timeStr = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
-		new Crawler(
-			ROOT_PAGE_TITLE,
-			String.format(OUTPUT_FILE_PATH, timeStr),
-			String.format(OUTPUT_SIMPLIFIED_FILE_PATH, timeStr),
-			String.format(BACKUP_FILE_PATH, timeStr)
-		);
+		RootConfig config = readConfig();
+		if (config == null)
+		{
+			log.error("missing config file!");
+			return;
+		}
+		new Crawler(config);
+	}
+
+	private static RootConfig readConfig()
+	{
+		try
+		{
+			URL fileUrl = Main.class.getResource("/config.json");
+			File file = new File(fileUrl.toURI());
+			String configJson = new String(Files.readAllBytes(file.toPath()));
+			RootConfig config = new Gson().fromJson(configJson, RootConfig.class);
+			String timeStr = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+			config.setOutputFilePath(convertKey(config.getOutputFilePath(), timeStr));
+			config.setOutputSimplifiedFilePath(
+				convertKey(config.getOutputSimplifiedFilePath(), timeStr));
+			config.setBackupFilePath(convertKey(config.getBackupFilePath(), timeStr));
+			return config;
+		}
+		catch (Exception e)
+		{
+			return null;
+		}
+	}
+
+	private static String convertKey(String raw, String timeStr)
+	{
+		if (!raw.contains("%s"))
+		{
+			return raw;
+		}
+		return String.format(raw, timeStr);
 	}
 }

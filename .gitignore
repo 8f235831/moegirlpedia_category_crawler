@@ -6,4 +6,4 @@
 /output/
 /src/test/
 
-/src/main/resources/config.json
+/src/main/resources/*

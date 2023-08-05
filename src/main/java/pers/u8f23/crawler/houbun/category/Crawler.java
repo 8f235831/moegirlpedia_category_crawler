@@ -3,14 +3,22 @@ package pers.u8f23.crawler.houbun.category;
 import com.google.gson.Gson;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import jakarta.mail.Message;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ResponseBody;
+import pers.u8f23.crawler.houbun.category.config.EmailConfig;
+import pers.u8f23.crawler.houbun.category.config.RootConfig;
 import pers.u8f23.crawler.houbun.category.response.ApiBaseResponse;
 import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -33,24 +41,18 @@ public final class Crawler
 	private final Set<String> visitedSet = Collections.synchronizedSet(new HashSet<>());
 	private final AtomicInteger requestingCounter = new AtomicInteger(0);
 	@NonNull
-	private final String outputFilePath;
-	private final String outputSimplifiedFilePath;
-	private final String backupFilePath;
+	private final RootConfig config;
 	@Getter
 	private volatile boolean mainPagesFinished = false;
+	private List<String> simplifiedList;
 
 
 	public Crawler(
-		@NonNull String rootCateTitle,
-		@NonNull String outputFilePath,
-		@NonNull String outputSimplifiedFilePath,
-		@NonNull String backupFilePath
+		@NonNull RootConfig config
 	)
 	{
-		this.outputFilePath = outputFilePath;
-		this.outputSimplifiedFilePath = outputSimplifiedFilePath;
-		this.backupFilePath = backupFilePath;
-		requestRootCate(rootCateTitle, rootCateTitle);
+		this.config = config;
+		requestRootCate(config.getRootCateTitle(), config.getRootCateTitle());
 		Completable.fromAction(this::afterMainPages)
 			.delay(1, TimeUnit.SECONDS)
 			.repeatUntil(() -> mainPagesFinished || requestingCounter.get() <= 0)
@@ -155,7 +157,7 @@ public final class Crawler
 			return;
 		}
 		Gson gson = new Gson();
-		try (FileOutputStream fos = new FileOutputStream(this.outputFilePath))
+		try (FileOutputStream fos = new FileOutputStream(this.config.getOutputFilePath()))
 		{
 			fos.write(gson.toJson(this.resultSet).getBytes());
 		}
@@ -165,6 +167,7 @@ public final class Crawler
 			simplifiedSet.addAll(v);
 		});
 		List<String> simplifiedList = new ArrayList<>(simplifiedSet);
+		this.simplifiedList = simplifiedList;
 		Collections.sort(simplifiedList);
 		StringBuilder titleInLinesBuilder = new StringBuilder();
 		for (String line : simplifiedList)
@@ -173,7 +176,7 @@ public final class Crawler
 			titleInLinesBuilder.append("\n");
 		}
 		String titleInLines = titleInLinesBuilder.toString();
-		try (PrintStream ps = new PrintStream(this.outputSimplifiedFilePath))
+		try (PrintStream ps = new PrintStream(config.getOutputSimplifiedFilePath()))
 		{
 			ps.print(titleInLines);
 		}
@@ -225,19 +228,89 @@ public final class Crawler
 				.string(StandardCharsets.UTF_8))
 			.observeOn(Schedulers.io())
 			.doOnSuccess(string -> {
-				try (OutputStream fos = Files.newOutputStream(Paths.get(backupFilePath)))
+				try (
+					OutputStream fos =
+						Files.newOutputStream(Paths.get(config.getBackupFilePath())))
 				{
 					fos.write(string.getBytes(StandardCharsets.UTF_8));
 				}
 			})
 			.doAfterTerminate(requestingCounter::decrementAndGet)
 			.retry(RETRY_TIMES)
+			.doAfterSuccess((o) -> sendReportEmail(true))
+			.doOnError((th) -> sendReportEmail(false))
 			.subscribe();
-
 	}
 
 	private Scheduler provideRequestScheduler()
 	{
 		return Schedulers.single();
+	}
+
+	private void sendReportEmail(boolean success)
+	{
+		EmailConfig config = this.config.getMailConfig();
+		String emailHost = config.getEmailHost();
+		String transportType = config.getTransportType();
+		String fromUser = config.getFromUser();
+		String fromEmail = config.getFromEmail();
+		String authCode = config.getAuthCode();
+		String toEmail = config.getToEmail();
+		List<String> copyToEmail = config.getCopyToEmail();   //收件人邮箱
+		String subject = config.getSubject();           //主题信息
+		try
+		{
+			Properties props = new Properties();
+			props.setProperty("mail.transport.protocol", transportType);
+			props.setProperty("mail.host", emailHost);
+			props.setProperty("mail.user", fromUser);
+			props.setProperty("mail.from", fromEmail);
+			Session session = Session.getInstance(props, null);
+			// session.setDebug(true);
+			MimeMessage message = new MimeMessage(session);
+			InternetAddress from = new InternetAddress(fromEmail);
+			message.setFrom(from);
+			InternetAddress to = new InternetAddress(toEmail);
+			message.setRecipient(Message.RecipientType.TO, to);
+			List<InternetAddress> copyAddresses = new ArrayList<>();
+			for (String addr : copyToEmail)
+			{
+				copyAddresses.add(new InternetAddress(addr));
+			}
+			InternetAddress[] addressesArr = copyAddresses.toArray(new InternetAddress[0]);
+			message.setRecipients(Message.RecipientType.CC, addressesArr);
+			message.setSubject(subject);
+			StringBuilder mailContentBuilder = new StringBuilder();
+			mailContentBuilder
+				.append("<h1>").append(subject).append("</h1>")
+				.append(success ? "<h3>Success!</h3>" : "<h3>Failed!</h3>")
+				.append("<div>Visited ").append(visitedSet.size()).append(" page(s).</div>")
+				.append("<div>Record ").append(simplifiedList.size()).append(" page(s).</div>")
+				.append("<div>Backup file length [")
+				.append(getBackupFileSize()).append("] bytes.</div>")
+				.append("<hr/>")
+				.append("<div>list:</div><ol>");
+			for (String item : simplifiedList)
+			{
+				mailContentBuilder.append("<li>").append(item).append("</li>");
+			}
+			mailContentBuilder.append("</ol>");
+			String mailContent = mailContentBuilder.toString();
+			message.setContent(mailContent, "text/html;charset=UTF-8");
+			message.saveChanges();
+			Transport transport = session.getTransport();
+			transport.connect(emailHost, fromEmail, authCode);
+			transport.sendMessage(message, message.getAllRecipients());
+		}
+		catch (Exception e)
+		{
+			log.error("Failed to send report mail!");
+		}
+	}
+
+	private long getBackupFileSize()
+	{
+		File f = new File(config.getBackupFilePath());
+		return f.length();
 	}
 }

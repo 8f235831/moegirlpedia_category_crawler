@@ -49,6 +49,10 @@ dependencies {
 
     // HTML解析 https://mvnrepository.com/artifact/org.jsoup/jsoup
     implementation 'org.jsoup:jsoup:1.16.1'
+
+    // https://mvnrepository.com/artifact/com.sun.mail/jakarta.mail
+    implementation 'com.sun.mail:jakarta.mail:2.0.1'
+
 }
 
 test {

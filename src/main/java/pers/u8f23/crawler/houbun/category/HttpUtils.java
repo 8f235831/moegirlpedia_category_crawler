@@ -36,7 +36,7 @@ public class HttpUtils
 	{
 		// 日志拦截器
 		HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-		logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
+		logging.setLevel(HttpLoggingInterceptor.Level.NONE);
 
 		OkHttpClient homeSiteClient = new OkHttpClient.Builder()
 			.addInterceptor(logging)
