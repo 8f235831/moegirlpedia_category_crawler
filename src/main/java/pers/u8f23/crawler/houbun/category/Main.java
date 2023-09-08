@@ -21,34 +21,49 @@ public class Main
 {
 	public static void main(String[] args) throws InterruptedException
 	{
-		RxJavaPlugins.setErrorHandler((th) -> log.info("global rxjava error catch: ", th));
-		RootConfig config = readConfig();
-		if (config == null)
+		RxJavaPlugins.setErrorHandler((th) -> log.info(
+			"global rxjava error " + "catch: ",
+			th
+		));
+		RootConfig config = readConfig(args.length > 0 ? args[0] : null);
+		if(config == null)
 		{
 			log.error("missing config file!");
 			return;
 		}
 		log.info("Success to load config:{}", new Gson().toJson(config));
-		new Crawler(config);
+		new CrawlerD(config);
 		Thread.sleep(Long.MAX_VALUE);
 	}
 
-	private static RootConfig readConfig()
+	private static RootConfig readConfig(String path)
 	{
 		try
 		{
-			File file = new File("config.json");
+			File file = new File((path == null || path.isEmpty())
+				? "config.json"
+				: path);
 			// log.info("config path:{}", file.getAbsolutePath());
 			String configJson = new String(Files.readAllBytes(file.toPath()));
-			RootConfig config = new Gson().fromJson(configJson, RootConfig.class);
-			String timeStr = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
-			config.setOutputFilePath(convertKey(config.getOutputFilePath(), timeStr));
-			config.setOutputSimplifiedFilePath(
-				convertKey(config.getOutputSimplifiedFilePath(), timeStr));
-			config.setBackupFilePath(convertKey(config.getBackupFilePath(), timeStr));
+			RootConfig config =
+				new Gson().fromJson(configJson, RootConfig.class);
+			String timeStr =
+				new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+			config.setOutputFilePath(convertKey(
+				config.getOutputFilePath(),
+				timeStr
+			));
+			config.setOutputSimplifiedFilePath(convertKey(
+				config.getOutputSimplifiedFilePath(),
+				timeStr
+			));
+			config.setBackupFilePath(convertKey(
+				config.getBackupFilePath(),
+				timeStr
+			));
 			return config;
 		}
-		catch (Exception e)
+		catch(Exception e)
 		{
 			log.error("failed to read config. ", e);
 			return null;
@@ -57,7 +72,7 @@ public class Main
 
 	private static String convertKey(String raw, String timeStr)
 	{
-		if (!raw.contains("%s"))
+		if(!raw.contains("%s"))
 		{
 			return raw;
 		}

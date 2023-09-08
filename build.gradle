@@ -54,6 +54,11 @@ dependencies {
     // https://mvnrepository.com/artifact/com.sun.mail/jakarta.mail
     implementation 'com.sun.mail:jakarta.mail:2.0.1'
 
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
+    implementation 'org.apache.commons:commons-compress:1.23.0'
+    // https://mvnrepository.com/artifact/org.tukaani/xz
+    implementation 'org.tukaani:xz:1.9'
+
 }
 
 test {

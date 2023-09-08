@@ -1,6 +1,8 @@
 package pers.u8f23.crawler.houbun.category.config;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
@@ -11,6 +13,8 @@ import java.util.List;
  */
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class EmailConfig
 {
 	private String emailHost;
@@ -18,8 +22,6 @@ public class EmailConfig
 	private String fromUser;
 	private String fromEmail;
 	private String authCode;
-	private String toEmail;
-	private List<String> copyToEmail;
-	private String subject;
-
+	private String mailSubject;
+	private List<EmailReceiverConfig> receivers;
 }
