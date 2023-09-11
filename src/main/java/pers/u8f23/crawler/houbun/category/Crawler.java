@@ -2,7 +2,6 @@ package pers.u8f23.crawler.houbun.category;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
-import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
@@ -181,19 +180,18 @@ public final class Crawler implements Runnable
 			.stream()
 			.map(receiver -> Completable.fromAction(() -> sendSingleMail(
 					receiver.getAddress(),
-					"[SUCCESS] " + Objects.requireNonNullElse(
+					"[成功] " + Objects.requireNonNullElse(
 						receiver.getMailSubject(),
 						Objects.requireNonNull(emailConfig.getMailSubject())
 					),
 					"<h1>" + Objects.requireNonNull(emailConfig.getMailSubject())
-					+ "</h1>" + "<h3>Success!</h3><hr/>"
-					+ "<div>Recorded " + pages.size() + " page(s).</div>"
-					+ "<div>Backup file length is [" + getBackupFileSize() +
-					"] bytes.</div>"
-					+ "<div>Compressed file length is [" + getCompressedFileSize() +
-					"] bytes.</div>"
-					+ "<div>Disk available space is [" + getDiskAvailableSpace() +
-					"] bytes.</div>",
+					+ "</h1>" + "<h3>成功备份！</h3><hr/>"
+					+ "<div>备份页数：" + pages.size() + "</div>"
+					+ "<div>备份文件大小：" + getBackupFileSize() + " bytes</div>"
+					+ "<div>备份压缩后大小：" + getCompressedFileSize() +
+					" bytes</div>"
+					+ "<div>备份目录磁盘可用空间：" + getDiskAvailableSpace() +
+					"bytes</div>",
 					generateAttachments(
 						receiver.isSendAttachment(),
 						receiver.isSendManifest(),
@@ -234,22 +232,22 @@ public final class Crawler implements Runnable
 			.stream()
 			.map(receiver -> Completable.fromAction(() -> sendSingleMail(
 					receiver.getAddress(),
-					"[FAILURE] " + Objects.requireNonNullElse(
+					"[失败] " + Objects.requireNonNullElse(
 						receiver.getMailSubject(),
 						Objects.requireNonNull(emailConfig.getMailSubject())
 					),
 					"<h1>" + Objects.requireNonNull(emailConfig.getMailSubject())
-					+ "</h1>" + "<h3>Failure!</h3><hr/>"
-					+ "<div>Recorded " + pages.size() + " page(s).</div>"
-					+ "<div>Backup file length is [" + getBackupFileSize()
-					+ "] bytes.</div>"
-					+ "<div>Compressed file length is [" + getCompressedFileSize()
-					+ "] bytes.</div>"
-					+ "<div>Disk available space is [" + getDiskAvailableSpace()
-					+ "] bytes.</div><hr/>"
-					+ "<div>Exception type: " + reason.getClass()
+					+ "</h1>" + "<h3>备份失败！</h3><hr/>"
+					+ "<div>已检索页数：" + pages.size() + "</div>"
+					+ "<div>备份文件大小：" + getBackupFileSize()
+					+ "bytes</div>"
+					+ "<div>备份压缩后大小：" + getCompressedFileSize()
+					+ "bytes</div>"
+					+ "<div>备份目录磁盘可用空间：" + getDiskAvailableSpace()
+					+ "bytes</div><hr/>"
+					+ "<div>异常类型：" + reason.getClass()
 						.getCanonicalName() + "</div>"
-					+ "<div>message: "
+					+ "<div>异常消息："
 					+ Objects.requireNonNull(reason.getMessage(), "null")
 					+ "</div>",
 					generateAttachments(
