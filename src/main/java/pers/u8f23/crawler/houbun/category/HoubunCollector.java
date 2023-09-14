@@ -41,9 +41,11 @@ public class HoubunCollector
 
 	public Flowable<String> flowable()
 	{
-		return Flowable.create(emitter -> {
-			submitTask(new Task(ROOT_PATH, true, false), emitter);
-		}, BackpressureStrategy.BUFFER);
+		return Flowable.create(
+			emitter ->
+				submitTask(new Task(ROOT_PATH, true, false), emitter),
+			BackpressureStrategy.BUFFER
+		);
 	}
 
 
@@ -147,13 +149,11 @@ public class HoubunCollector
 						new RuntimeException("no element!")
 					))
 				.retry(retryTimes)
-				.doOnSuccess(set -> {
-					writeLockedField(() -> {
-						pages.addAll(set);
-						set.forEach(emitter::onNext);
-						return "";
-					});
-				})
+				.doOnSuccess(set -> writeLockedField(() -> {
+					pages.addAll(set);
+					set.forEach(emitter::onNext);
+					return "";
+				}))
 				.doFinally(() -> writeLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
@@ -185,20 +185,6 @@ public class HoubunCollector
 		lock.writeLock()
 			.unlock();
 		return r;
-	}
-
-	private String removePrefixIfPresent(final String src)
-	{
-		String result = src;
-		if(src.startsWith("index.php"))
-		{
-			result = ROOT_PATH;
-		}
-		if(src.startsWith("Category:"))
-		{
-			return src.replaceFirst("Category:", "");
-		}
-		return src;
 	}
 
 	@AllArgsConstructor
