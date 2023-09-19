@@ -19,21 +19,40 @@ import java.util.Date;
 @Slf4j
 public class Main
 {
-	public static void main(String[] args) throws InterruptedException
+	public static void main(String[] args)
 	{
 		RxJavaPlugins.setErrorHandler((th) -> log.info(
 			"global rxjava error " + "catch: ",
 			th
 		));
-		RootConfig config = readConfig(args.length > 0 ? args[0] : null);
-		if(config == null)
+		String definedConfigFile = args.length > 0 ? args[0] : null;
+		if (definedConfigFile == null)
+		{
+			log.info("use default config file.");
+		}
+		else
+		{
+			log.info("use assigned config file at\"{}\".", definedConfigFile);
+		}
+		RootConfig config = readConfig(definedConfigFile);
+		if (config == null)
 		{
 			log.error("missing config file!");
 			return;
 		}
 		log.info("Success to load config:{}", new Gson().toJson(config));
-		new CrawlerD(config);
-		Thread.sleep(Long.MAX_VALUE);
+		HoubunCollector collector = new HoubunCollector(config.getRetryTimes());
+		Crawler
+			.builder()
+			.backupListCollector(collector.single())
+			.outputPath(config.getOutputFilePath())
+			.compressedFilePath(config.getCompressedFilePath())
+			.exceptionTraceFilePath(config.getExceptionTraceFilePath())
+			.retryTimes(config.getRetryTimes())
+			.bufferSize(config.getBufferSize())
+			.emailConfig(config.getEmailConfig())
+			.build()
+			.run();
 	}
 
 	private static RootConfig readConfig(String path)
@@ -43,7 +62,6 @@ public class Main
 			File file = new File((path == null || path.isEmpty())
 				? "config.json"
 				: path);
-			// log.info("config path:{}", file.getAbsolutePath());
 			String configJson = new String(Files.readAllBytes(file.toPath()));
 			RootConfig config =
 				new Gson().fromJson(configJson, RootConfig.class);
@@ -53,17 +71,21 @@ public class Main
 				config.getOutputFilePath(),
 				timeStr
 			));
-			config.setOutputSimplifiedFilePath(convertKey(
-				config.getOutputSimplifiedFilePath(),
+			config.setOutputFilePath(convertKey(
+				config.getOutputFilePath(),
 				timeStr
 			));
-			config.setBackupFilePath(convertKey(
-				config.getBackupFilePath(),
+			config.setCompressedFilePath(convertKey(
+				config.getCompressedFilePath(),
+				timeStr
+			));
+			config.setExceptionTraceFilePath(convertKey(
+				config.getExceptionTraceFilePath(),
 				timeStr
 			));
 			return config;
 		}
-		catch(Exception e)
+		catch (Exception e)
 		{
 			log.error("failed to read config. ", e);
 			return null;
@@ -72,7 +94,7 @@ public class Main
 
 	private static String convertKey(String raw, String timeStr)
 	{
-		if(!raw.contains("%s"))
+		if (!raw.contains("%s"))
 		{
 			return raw;
 		}

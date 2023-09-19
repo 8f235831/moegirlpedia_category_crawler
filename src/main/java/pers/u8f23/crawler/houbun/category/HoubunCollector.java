@@ -1,9 +1,6 @@
 package pers.u8f23.crawler.houbun.category;
 
-import io.reactivex.rxjava3.core.BackpressureStrategy;
-import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.core.FlowableEmitter;
-import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +23,6 @@ public class HoubunCollector
 	private static final String ROOT_PATH = "Category:芳文社";
 
 	private final int retryTimes;
-	private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 	private final Set<String> pages = new HashSet<>();
 	private final Set<String> visited = new HashSet<>();
 	private final Set<String> activeTasks = new HashSet<>();
@@ -42,10 +38,18 @@ public class HoubunCollector
 	public Flowable<String> flowable()
 	{
 		return Flowable.create(
-			emitter ->
-				submitTask(new Task(ROOT_PATH, true, false), emitter),
-			BackpressureStrategy.BUFFER
-		);
+				(FlowableOnSubscribe<String>) emitter ->
+					submitTask(new Task(ROOT_PATH, true, false), emitter),
+				BackpressureStrategy.BUFFER
+			)
+			.doOnComplete(() -> log.info("All data from houbun are collected!"));
+	}
+
+	public Single<? extends Set<String>> single()
+	{
+		return flowable()
+			.toList()
+			.map(HashSet::new);
 	}
 
 
@@ -53,26 +57,26 @@ public class HoubunCollector
 	{
 		log.info("submit task:\"{}\"[{}]", task.path, task.inRootCate);
 		String path = task.path;
-		if(path == null || path.startsWith("User:") || readLockedField(() ->
+		if (path == null || path.startsWith("User:") || readLockedField(() ->
 			visited.contains(path) || activeTasks.contains(path)
 		))
 		{
 			return;
 		}
-		if(path.startsWith("Category:")
-		   || path.startsWith("index.php?title=Category:"))
+		if (path.startsWith("Category:")
+		    || path.startsWith("index.php?title=Category:"))
 		{
 			boolean writeSuccess = writeLockedField(() -> {
 				boolean contained =
 					visited.contains(path) || activeTasks.contains(path);
-				if(contained)
+				if (contained)
 				{
 					return false;
 				}
 				activeTasks.add(path);
 				return true;
 			});
-			if(!writeSuccess)
+			if (!writeSuccess)
 			{
 				return;
 			}
@@ -101,7 +105,7 @@ public class HoubunCollector
 				.doFinally(() -> writeLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
-					if(activeTasks.isEmpty())
+					if (activeTasks.isEmpty())
 					{
 						emitter.onComplete();
 					}
@@ -109,26 +113,26 @@ public class HoubunCollector
 				}))
 				.subscribe();
 		}
-		else if(task.inRootCate)
+		else if (task.inRootCate)
 		{
 			// traverse works.
 			submitTask(new Task("Category:" + path, false, false), emitter);
 			submitTask(new Task(path, false, true), emitter);
 		}
-		else if(task.workRoot)
+		else if (task.workRoot)
 		{
 			// query creators.
 			boolean writeSuccess = writeLockedField(() -> {
 				boolean contained =
 					visited.contains(path) || activeTasks.contains(path);
-				if(contained)
+				if (contained)
 				{
 					return false;
 				}
 				activeTasks.add(path);
 				return true;
 			});
-			if(!writeSuccess)
+			if (!writeSuccess)
 			{
 				return;
 			}
@@ -157,7 +161,8 @@ public class HoubunCollector
 				.doFinally(() -> writeLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
-					if(activeTasks.isEmpty())
+					log.info("[{}] task(s) uncompleted!", activeTasks.size());
+					if (activeTasks.isEmpty())
 					{
 						emitter.onComplete();
 					}
@@ -167,24 +172,14 @@ public class HoubunCollector
 		}
 	}
 
-	private <R> R readLockedField(Supplier<R> action)
+	private synchronized <R> R readLockedField(Supplier<R> action)
 	{
-		lock.readLock()
-			.lock();
-		R r = action.get();
-		lock.readLock()
-			.unlock();
-		return r;
+		return action.get();
 	}
 
-	private <R> R writeLockedField(Supplier<R> action)
+	private synchronized <R> R writeLockedField(Supplier<R> action)
 	{
-		lock.writeLock()
-			.lock();
-		R r = action.get();
-		lock.writeLock()
-			.unlock();
-		return r;
+		return action.get();
 	}
 
 	@AllArgsConstructor

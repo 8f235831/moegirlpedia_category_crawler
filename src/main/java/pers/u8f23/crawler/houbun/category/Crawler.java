@@ -2,6 +2,7 @@ package pers.u8f23.crawler.houbun.category;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
@@ -22,6 +23,8 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -36,7 +39,6 @@ public final class Crawler implements Runnable
 	private final Single<? extends Set<String>> backupListCollector;
 	private final String outputPath;
 	private final String compressedFilePath;
-	private final String manifestFilePath;
 	private final String exceptionTraceFilePath;
 	private final EmailConfig emailConfig;
 	private final int retryTimes;
@@ -47,7 +49,6 @@ public final class Crawler implements Runnable
 		final Single<? extends Set<String>> backupListCollector,
 		final String outputPath,
 		final String compressedFilePath,
-		final String manifestFilePath,
 		final String exceptionTraceFilePath, final EmailConfig emailConfig,
 		final int retryTimes,
 		final int bufferSize
@@ -56,7 +57,6 @@ public final class Crawler implements Runnable
 		this.backupListCollector = backupListCollector;
 		this.outputPath = outputPath;
 		this.compressedFilePath = compressedFilePath;
-		this.manifestFilePath = manifestFilePath;
 		this.exceptionTraceFilePath = exceptionTraceFilePath;
 		this.emailConfig = emailConfig;
 		this.retryTimes = retryTimes;
@@ -75,7 +75,9 @@ public final class Crawler implements Runnable
 					this.pages = Objects.requireNonNull(pages)
 				)
 				.map(this::concatPagesTitles)
-				.observeOn(Schedulers.trampoline())
+				.doOnSuccess(any -> log.info(
+					"Collected pages success to map, then turn to downloading backup file."
+				))
 				.flatMapCompletable(pages ->
 					Completable.fromAction(this::downloadBackupFile)
 				)
@@ -83,13 +85,13 @@ public final class Crawler implements Runnable
 				.andThen(Completable.fromAction(this::sendSuccessMail))
 				.blockingSubscribe();
 		}
-		catch(Throwable any)
+		catch (Throwable any)
 		{
 			sendFailureMail(any);
 		}
 	}
 
-	@SuppressWarnings("BlockingMethodInNonBlockingContext")
+	@SuppressWarnings ("BlockingMethodInNonBlockingContext")
 	private void downloadBackupFile()
 	{
 		MirrorSiteService.getInstance()
@@ -104,7 +106,7 @@ public final class Crawler implements Runnable
 			.observeOn(Schedulers.single())
 			.flatMapCompletable(res -> Completable.fromAction(() -> {
 				log.info("download start");
-				try(
+				try (
 					ResponseBody body = res.body();
 					InputStream is = (body == null)
 						? null
@@ -114,19 +116,36 @@ public final class Crawler implements Runnable
 						: Files.newOutputStream(Paths.get(outputPath))
 				)
 				{
-					if(body == null)
+					if (body == null)
 					{
 						throw new NullPointerException("Null body");
 					}
+					log.info("download connection opened.");
 					byte[] buffer = new byte[this.bufferSize];
-					while(true)
-					{
-						int i = is.read(buffer);
-						if(i < 0)
+					AtomicLong downloadedSize = new AtomicLong(0);
+					AtomicBoolean downloadFinished = new AtomicBoolean(false);
+					Completable.fromAction(() ->
+							log.info("Downloaded backup file size: {}", downloadedSize)
+						)
+						.repeatUntil(downloadFinished::get)
+						.subscribeOn(Schedulers.newThread())
+						.observeOn(Schedulers.newThread())
+						.subscribe();
+					try{
+						while (true)
 						{
-							break;
+							int i = is.read(buffer);
+							if (i < 0)
+							{
+								break;
+							}
+							fos.write(buffer, 0, i);
+							downloadedSize.addAndGet(i);
 						}
-						fos.write(buffer, 0, i);
+					}
+					finally
+					{
+						downloadFinished.set(true);
 					}
 					log.info("finish backup.");
 				}
@@ -141,7 +160,7 @@ public final class Crawler implements Runnable
 	private void compressBackupFile()
 	{
 		log.info("start compress file.");
-		try(
+		try (
 			SevenZOutputFile outArchive =
 				new SevenZOutputFile(new File(this.compressedFilePath));
 			InputStream is = Files.newInputStream(Paths.get(this.outputPath))
@@ -154,10 +173,10 @@ public final class Crawler implements Runnable
 			entry.setAccessDate(date);
 			outArchive.putArchiveEntry(entry);
 			byte[] buffer = new byte[bufferSize];
-			while(true)
+			while (true)
 			{
 				int i = is.read(buffer);
-				if(i < 0)
+				if (i < 0)
 				{
 					break;
 				}
@@ -165,7 +184,7 @@ public final class Crawler implements Runnable
 			}
 			outArchive.closeArchiveEntry();
 		}
-		catch(Exception e)
+		catch (Exception e)
 		{
 			throw new RuntimeException("Failed to compress file", e);
 		}
@@ -194,7 +213,6 @@ public final class Crawler implements Runnable
 					"bytes</div>",
 					generateAttachments(
 						receiver.isSendAttachment(),
-						receiver.isSendManifest(),
 						receiver.isSendErrorStackTrace()
 					)
 				))
@@ -216,7 +234,7 @@ public final class Crawler implements Runnable
 	{
 		log.info("sendFailureMail()", reason);
 		Completable.fromAction(() -> {
-				try(
+				try (
 					PrintStream ps =
 						new PrintStream(Files.newOutputStream(Paths.get(this.exceptionTraceFilePath)))
 				)
@@ -252,7 +270,6 @@ public final class Crawler implements Runnable
 					+ "</div>",
 					generateAttachments(
 						receiver.isSendAttachment(),
-						receiver.isSendManifest(),
 						receiver.isSendErrorStackTrace()
 					)
 				))
@@ -275,7 +292,7 @@ public final class Crawler implements Runnable
 		List<String> simplifiedList = new ArrayList<>(pages);
 		Collections.sort(simplifiedList);
 		StringBuilder titleInLinesBuilder = new StringBuilder();
-		for(String line : simplifiedList)
+		for (String line : simplifiedList)
 		{
 			titleInLinesBuilder.append(line);
 			titleInLinesBuilder.append("\n");
@@ -286,8 +303,7 @@ public final class Crawler implements Runnable
 	/**
 	 * 发送邮件。
 	 *
-	 * @param attachments
-	 * 	key = 附件文件路径; value = 附件名
+	 * @param attachments key = 附件文件路径; value = 附件名
 	 */
 	@SneakyThrows
 	private void sendSingleMail(
@@ -321,14 +337,14 @@ public final class Crawler implements Runnable
 		message.setSubject(subject);
 		Multipart multipart = new MimeMultipart();
 		BodyPart textPart = new MimeBodyPart();
-		textPart.setText(content);
+		textPart.setContent(content, "html");
 		multipart.addBodyPart(textPart);
-		for(Map.Entry<String, String> entry : attachments.entrySet())
+		for (Map.Entry<String, String> entry : attachments.entrySet())
 		{
 			String path = Objects.requireNonNull(entry.getKey());
 			String fileName = Objects.requireNonNull(entry.getValue());
 			File f = new File(path);
-			if(!f.isFile() || !f.canRead())
+			if (!f.isFile() || !f.canRead())
 			{
 				log.error("Failed to find file\"{}\"", path);
 			}
@@ -365,20 +381,15 @@ public final class Crawler implements Runnable
 
 	private Map<String, String> generateAttachments(
 		final boolean backupFile,
-		final boolean manifest,
 		final boolean errTrack
 	)
 	{
 		Map<String, String> result = new HashMap<>();
-		if(backupFile && new File(compressedFilePath).canRead())
+		if (backupFile && new File(compressedFilePath).canRead())
 		{
 			result.put(compressedFilePath, "backup.7z");
 		}
-		if(manifest && new File(manifestFilePath).canRead())
-		{
-			result.put(manifestFilePath, "manifest.txt");
-		}
-		if(errTrack && new File(exceptionTraceFilePath).canRead())
+		if (errTrack && new File(exceptionTraceFilePath).canRead())
 		{
 			result.put(exceptionTraceFilePath, "stackTrace.txt");
 		}
@@ -395,7 +406,6 @@ public final class Crawler implements Runnable
 		private Single<? extends Set<String>> backupListCollector;
 		private String outputPath;
 		private String compressedFilePath;
-		private String manifestFilePath;
 		private String exceptionTraceFilePath;
 		private EmailConfig emailConfig;
 		private int retryTimes = DEFAULT_RETRY_TIMES;
@@ -407,7 +417,6 @@ public final class Crawler implements Runnable
 				Objects.requireNonNull(backupListCollector),
 				Objects.requireNonNull(outputPath),
 				Objects.requireNonNull(compressedFilePath),
-				Objects.requireNonNull(manifestFilePath),
 				Objects.requireNonNull(exceptionTraceFilePath),
 				Objects.requireNonNull(emailConfig),
 				retryTimes, bufferSize
@@ -429,13 +438,6 @@ public final class Crawler implements Runnable
 		public Builder compressedFilePath(final String o)
 		{
 			this.compressedFilePath = o;
-			return this;
-		}
-
-
-		public Builder manifestFilePath(final String o)
-		{
-			this.manifestFilePath = o;
 			return this;
 		}
 

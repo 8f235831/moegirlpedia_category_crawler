@@ -11,8 +11,9 @@ import lombok.Setter;
 public class RootConfig
 {
 	private String outputFilePath;
-	private String outputSimplifiedFilePath;
-	private String backupFilePath;
-	private String rootCateTitle;
-	private EmailConfig mailConfig;
+	private String compressedFilePath;
+	private String exceptionTraceFilePath;
+	private int retryTimes;
+	private int bufferSize;
+	private EmailConfig emailConfig;
 }
