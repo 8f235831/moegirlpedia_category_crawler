@@ -15,6 +15,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -25,12 +26,11 @@ import java.util.concurrent.TimeUnit;
 public class HttpUtils
 {
 	public static final int HOME_SITE_TIME_OUT = 3;
-	public static final int MIRROR_SITE_TIME_OUT = 5 * 60;
 	public static final String HOME_SITE_BASE_URL = "https://zh.moegirl.org.cn";
-	public static final String MIRROR_SITE_BASE_URL = "https://moegirl.uk";
+	public static final String MIRROR_SITE_BACKUP_URL = "https://moegirl.uk/Special:%E5%AF%BC%E5%87%BA%E9%A1%B5%E9%9D%A2";
 
 	private static final Retrofit HOME_SITE_SERVICE_CREATOR;
-	private static final Retrofit MIRROR_SITE_SERVICE_CREATOR;
+	public static final OkHttpClient MIRROR_SITE_CLIENT;
 
 	static
 	{
@@ -49,26 +49,14 @@ public class HttpUtils
 			.client(homeSiteClient)
 			.build();
 
-		OkHttpClient mirrorSiteClient = new OkHttpClient.Builder()
+		MIRROR_SITE_CLIENT = new OkHttpClient.Builder()
 			.addInterceptor(logging)
-			.connectTimeout(MIRROR_SITE_TIME_OUT, TimeUnit.SECONDS)
-			.build();
-		MIRROR_SITE_SERVICE_CREATOR = new Retrofit.Builder()
-			.addConverterFactory(GsonConverterFactory.create())
-			.baseUrl(MIRROR_SITE_BASE_URL)
-			.addCallAdapterFactory(RxJava3CallAdapterFactory.create())
-			.client(mirrorSiteClient)
 			.build();
 	}
 
 	public static <S> S buildHomeSiteService(Class<S> clazz)
 	{
 		return HOME_SITE_SERVICE_CREATOR.create(clazz);
-	}
-
-	public static <S> S buildMirrorSiteService(Class<S> clazz)
-	{
-		return MIRROR_SITE_SERVICE_CREATOR.create(clazz);
 	}
 
 	@NonNull
@@ -122,7 +110,7 @@ public class HttpUtils
 			{
 				try
 				{
-					link = URLDecoder.decode(link, "UTF-8");
+					link = URLDecoder.decode(link, StandardCharsets.UTF_8);
 				}
 				catch (Exception ignored)
 				{

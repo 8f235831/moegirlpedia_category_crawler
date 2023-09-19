@@ -48,7 +48,6 @@ public class Main
 			.outputPath(config.getOutputFilePath())
 			.compressedFilePath(config.getCompressedFilePath())
 			.exceptionTraceFilePath(config.getExceptionTraceFilePath())
-			.retryTimes(config.getRetryTimes())
 			.bufferSize(config.getBufferSize())
 			.emailConfig(config.getEmailConfig())
 			.build()

@@ -10,7 +10,6 @@ import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 
 import java.util.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 /**
@@ -57,7 +56,7 @@ public class HoubunCollector
 	{
 		log.info("submit task:\"{}\"[{}]", task.path, task.inRootCate);
 		String path = task.path;
-		if (path == null || path.startsWith("User:") || readLockedField(() ->
+		if (path == null || path.startsWith("User:") || accessLockedField(() ->
 			visited.contains(path) || activeTasks.contains(path)
 		))
 		{
@@ -66,7 +65,7 @@ public class HoubunCollector
 		if (path.startsWith("Category:")
 		    || path.startsWith("index.php?title=Category:"))
 		{
-			boolean writeSuccess = writeLockedField(() -> {
+			boolean writeSuccess = accessLockedField(() -> {
 				boolean contained =
 					visited.contains(path) || activeTasks.contains(path);
 				if (contained)
@@ -100,9 +99,9 @@ public class HoubunCollector
 							), emitter);
 						emitter.onNext(i);
 					});
-					writeLockedField(() -> pages.addAll(set));
+					accessLockedField(() -> pages.addAll(set));
 				})
-				.doFinally(() -> writeLockedField(() -> {
+				.doFinally(() -> accessLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
 					if (activeTasks.isEmpty())
@@ -122,7 +121,7 @@ public class HoubunCollector
 		else if (task.workRoot)
 		{
 			// query creators.
-			boolean writeSuccess = writeLockedField(() -> {
+			boolean writeSuccess = accessLockedField(() -> {
 				boolean contained =
 					visited.contains(path) || activeTasks.contains(path);
 				if (contained)
@@ -153,15 +152,15 @@ public class HoubunCollector
 						new RuntimeException("no element!")
 					))
 				.retry(retryTimes)
-				.doOnSuccess(set -> writeLockedField(() -> {
+				.doOnSuccess(set -> accessLockedField(() -> {
 					pages.addAll(set);
 					set.forEach(emitter::onNext);
 					return "";
 				}))
-				.doFinally(() -> writeLockedField(() -> {
+				.doFinally(() -> accessLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
-					log.info("[{}] task(s) uncompleted!", activeTasks.size());
+					log.info("[{}] task(s) uncompleted.", activeTasks.size());
 					if (activeTasks.isEmpty())
 					{
 						emitter.onComplete();
@@ -172,12 +171,7 @@ public class HoubunCollector
 		}
 	}
 
-	private synchronized <R> R readLockedField(Supplier<R> action)
-	{
-		return action.get();
-	}
-
-	private synchronized <R> R writeLockedField(Supplier<R> action)
+	private synchronized <R> R accessLockedField(Supplier<R> action)
 	{
 		return action.get();
 	}

@@ -2,7 +2,6 @@ package pers.u8f23.crawler.houbun.category;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
-import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
@@ -11,21 +10,21 @@ import jakarta.mail.*;
 import jakarta.mail.internet.*;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.ResponseBody;
+import okhttp3.*;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
 import pers.u8f23.crawler.houbun.category.config.EmailConfig;
 
-import java.io.File;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import static pers.u8f23.crawler.houbun.category.HttpUtils.MIRROR_SITE_BACKUP_URL;
+import static pers.u8f23.crawler.houbun.category.HttpUtils.MIRROR_SITE_CLIENT;
 
 /**
  * @author 8f23
@@ -34,14 +33,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public final class Crawler implements Runnable
 {
-	private static final int DEFAULT_RETRY_TIMES = 10;
 	private static final int DEFAULT_BUFFER_SIZE = 1024 * 4;
 	private final Single<? extends Set<String>> backupListCollector;
 	private final String outputPath;
 	private final String compressedFilePath;
 	private final String exceptionTraceFilePath;
 	private final EmailConfig emailConfig;
-	private final int retryTimes;
 	private final int bufferSize;
 	private Set<String> pages = Collections.emptySet();
 
@@ -49,8 +46,8 @@ public final class Crawler implements Runnable
 		final Single<? extends Set<String>> backupListCollector,
 		final String outputPath,
 		final String compressedFilePath,
-		final String exceptionTraceFilePath, final EmailConfig emailConfig,
-		final int retryTimes,
+		final String exceptionTraceFilePath,
+		final EmailConfig emailConfig,
 		final int bufferSize
 	)
 	{
@@ -59,7 +56,6 @@ public final class Crawler implements Runnable
 		this.compressedFilePath = compressedFilePath;
 		this.exceptionTraceFilePath = exceptionTraceFilePath;
 		this.emailConfig = emailConfig;
-		this.retryTimes = retryTimes;
 		this.bufferSize = bufferSize;
 	}
 
@@ -91,70 +87,68 @@ public final class Crawler implements Runnable
 		}
 	}
 
-	@SuppressWarnings ("BlockingMethodInNonBlockingContext")
-	private void downloadBackupFile()
+	private void downloadBackupFile() throws IOException
 	{
-		MirrorSiteService.getInstance()
-			.requestMirror(
-				concatPagesTitles(this.pages),
-				"1",
-				"1",
-				"+\\",
-				"Special:导出页面"
-			)
-			.subscribeOn(Schedulers.io())
-			.observeOn(Schedulers.single())
-			.flatMapCompletable(res -> Completable.fromAction(() -> {
-				log.info("download start");
-				try (
-					ResponseBody body = res.body();
-					InputStream is = (body == null)
-						? null
-						: body.byteStream();
-					OutputStream fos = (body == null)
-						? null
-						: Files.newOutputStream(Paths.get(outputPath))
+		log.info("try to concatenate page titles.");
+		String concatenatedTitles = concatPagesTitles(this.pages);
+		log.info("try to download backup.");
+		Call call = MIRROR_SITE_CLIENT
+			.newCall(new Request.Builder()
+				.url(MIRROR_SITE_BACKUP_URL)
+				.post(new FormBody.Builder()
+					.add("pages", concatenatedTitles)
+					.add("templates", "1")
+					.add("wpDownload", "1")
+					.add("wpEditToken", "+\\")
+					.add("title", "Special:导出页面")
+					.build())
+				.build()
+			);
+		try (Response response = call.execute();
+		     ResponseBody body = response.body();
+		     InputStream is = (body == null)
+			     ? null
+			     : body.byteStream();
+		     OutputStream fos = Files
+			     .newOutputStream(Paths.get(outputPath))
+		)
+		{
+			if (body == null)
+			{
+				throw new NullPointerException("Null body");
+			}
+			log.info("downloading connection opened.");
+			byte[] buffer = new byte[bufferSize];
+			AtomicLong downloadedSize = new AtomicLong(0);
+			AtomicBoolean downloadFinished = new AtomicBoolean(false);
+			Completable.fromAction(() -> {
+						log.info("Downloaded backup file size: {}", downloadedSize);
+						Thread.sleep(1000);
+					}
 				)
+				.repeatUntil(downloadFinished::get)
+				.subscribeOn(Schedulers.newThread())
+				.observeOn(Schedulers.newThread())
+				.subscribe();
+			try
+			{
+				while (true)
 				{
-					if (body == null)
+					int i = is.read(buffer);
+					if (i < 0)
 					{
-						throw new NullPointerException("Null body");
+						break;
 					}
-					log.info("download connection opened.");
-					byte[] buffer = new byte[this.bufferSize];
-					AtomicLong downloadedSize = new AtomicLong(0);
-					AtomicBoolean downloadFinished = new AtomicBoolean(false);
-					Completable.fromAction(() ->
-							log.info("Downloaded backup file size: {}", downloadedSize)
-						)
-						.repeatUntil(downloadFinished::get)
-						.subscribeOn(Schedulers.newThread())
-						.observeOn(Schedulers.newThread())
-						.subscribe();
-					try{
-						while (true)
-						{
-							int i = is.read(buffer);
-							if (i < 0)
-							{
-								break;
-							}
-							fos.write(buffer, 0, i);
-							downloadedSize.addAndGet(i);
-						}
-					}
-					finally
-					{
-						downloadFinished.set(true);
-					}
-					log.info("finish backup.");
+					fos.write(buffer, 0, i);
+					downloadedSize.addAndGet(i);
 				}
-			}))
-			.doOnError((th) -> {
-				throw new RuntimeException("Failed to query backup.", th);
-			})
-			.retry(retryTimes)
-			.blockingSubscribe();
+			}
+			finally
+			{
+				downloadFinished.set(true);
+			}
+			log.info("finish backup.");
+		}
 	}
 
 	private void compressBackupFile()
@@ -337,7 +331,7 @@ public final class Crawler implements Runnable
 		message.setSubject(subject);
 		Multipart multipart = new MimeMultipart();
 		BodyPart textPart = new MimeBodyPart();
-		textPart.setContent(content, "html");
+		textPart.setContent(content, "text/html");
 		multipart.addBodyPart(textPart);
 		for (Map.Entry<String, String> entry : attachments.entrySet())
 		{
@@ -360,6 +354,7 @@ public final class Crawler implements Runnable
 		Transport transport = session.getTransport();
 		transport.connect(emailHost, fromEmail, authCode);
 		transport.sendMessage(message, message.getAllRecipients());
+		log.info("success to send mail to \"{}\"", to);
 	}
 
 	private long getBackupFileSize()
@@ -408,7 +403,6 @@ public final class Crawler implements Runnable
 		private String compressedFilePath;
 		private String exceptionTraceFilePath;
 		private EmailConfig emailConfig;
-		private int retryTimes = DEFAULT_RETRY_TIMES;
 		private int bufferSize = DEFAULT_BUFFER_SIZE;
 
 		public Crawler build()
@@ -419,7 +413,7 @@ public final class Crawler implements Runnable
 				Objects.requireNonNull(compressedFilePath),
 				Objects.requireNonNull(exceptionTraceFilePath),
 				Objects.requireNonNull(emailConfig),
-				retryTimes, bufferSize
+				bufferSize
 			);
 		}
 
@@ -450,12 +444,6 @@ public final class Crawler implements Runnable
 		public Builder emailConfig(final EmailConfig o)
 		{
 			this.emailConfig = o;
-			return this;
-		}
-
-		public Builder retryTimes(final int o)
-		{
-			this.retryTimes = o;
 			return this;
 		}
 
