@@ -331,7 +331,7 @@ public final class Crawler implements Runnable
 		message.setSubject(subject);
 		Multipart multipart = new MimeMultipart();
 		BodyPart textPart = new MimeBodyPart();
-		textPart.setContent(content, "text/html");
+		textPart.setContent(content, "text/html;charset=utf8");
 		multipart.addBodyPart(textPart);
 		for (Map.Entry<String, String> entry : attachments.entrySet())
 		{
