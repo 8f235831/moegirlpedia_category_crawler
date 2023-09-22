@@ -112,7 +112,7 @@ public class HoubunCollector
 		else if (task.workRoot)
 		{
 			// query creators.
-			boolean writeSuccess = taskExists(path);;
+			boolean writeSuccess = taskExists(path);
 			if (!writeSuccess)
 			{
 				return;
