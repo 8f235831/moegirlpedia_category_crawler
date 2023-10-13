@@ -65,16 +65,7 @@ public class HoubunCollector
 		if (path.startsWith("Category:")
 		    || path.startsWith("index.php?title=Category:"))
 		{
-			boolean writeSuccess = accessLockedField(() -> {
-				boolean contained =
-					visited.contains(path) || activeTasks.contains(path);
-				if (contained)
-				{
-					return false;
-				}
-				activeTasks.add(path);
-				return true;
-			});
+			boolean writeSuccess = taskExists(path);
 			if (!writeSuccess)
 			{
 				return;
@@ -121,16 +112,7 @@ public class HoubunCollector
 		else if (task.workRoot)
 		{
 			// query creators.
-			boolean writeSuccess = accessLockedField(() -> {
-				boolean contained =
-					visited.contains(path) || activeTasks.contains(path);
-				if (contained)
-				{
-					return false;
-				}
-				activeTasks.add(path);
-				return true;
-			});
+			boolean writeSuccess = taskExists(path);
 			if (!writeSuccess)
 			{
 				return;
@@ -171,6 +153,19 @@ public class HoubunCollector
 		}
 	}
 
+	private boolean taskExists(String path){
+		return accessLockedField(() -> {
+			boolean contained =
+				visited.contains(path) || activeTasks.contains(path);
+			if (contained)
+			{
+				return false;
+			}
+			activeTasks.add(path);
+			return true;
+		});
+	}
+
 	private synchronized <R> R accessLockedField(Supplier<R> action)
 	{
 		return action.get();
@@ -180,7 +175,7 @@ public class HoubunCollector
 	private static class Task
 	{
 		private final String path;
-		private boolean inRootCate;
-		private boolean workRoot;
+		private final boolean inRootCate;
+		private final boolean workRoot;
 	}
 }
