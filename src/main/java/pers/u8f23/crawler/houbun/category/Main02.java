@@ -2,11 +2,9 @@ package pers.u8f23.crawler.houbun.category;
 
 import com.google.gson.Gson;
 import io.reactivex.rxjava3.core.Single;
-import io.reactivex.rxjava3.schedulers.Schedulers;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.ResponseBody;
 import pers.u8f23.crawler.houbun.category.config.RootConfig;
-import retrofit2.Response;
+import pers.u8f23.crawler.houbun.category.response.CategoryPageParsed;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -23,9 +21,9 @@ import java.util.function.Supplier;
 public class Main02
 {
 	private static RootConfig config;
-	private static final String ROOT_PATH = "Category:芳文社";
+	private static final String ROOT_PATH = "Category:日本漫画作品";
 	private static final long MAX_WAIT_INTERVAL = 40 * 60 * 1000; //40 minutes
-	private static final LongUnaryOperator WAIT_INTERVAL_UPGRADE_RULE = l -> (l<<2);
+	private static final LongUnaryOperator WAIT_INTERVAL_UPGRADE_RULE = l -> (l << 1);
 
 	public static void main(String[] args) throws Exception
 	{
@@ -49,7 +47,7 @@ public class Main02
 		Set<String> worksTitles = collectAllWorks();
 		log.info("Success to request all works' title. Collection size is {}.",
 			worksTitles.size());
-		worksTitles.forEach(System.out::println);
+//		worksTitles.forEach(System.out::println);
 		// TODO
 	}
 
@@ -76,33 +74,31 @@ public class Main02
 			res.add(currCate);
 
 			if (!currCate.startsWith("Category:")
-			    && !currCate.startsWith("index.php?title=Category:"))
+			    && !currCate.startsWith("/index.php?title=Category:"))
 			{
 				continue;
 			}
 			// 开始网络请求。
-			Supplier<Single<List<Set<String>>>> singleProvider = () ->
+			Supplier<Single<CategoryPageParsed>> singleProvider = () ->
 				(currCate.startsWith("Category:")
 					? HomeSiteService.getInstance().get(currCate)
 					: HomeSiteService.getInstance().getUrl(currCate))
-					.map(HttpUtils::parseRawHtmlCategoryPage);
-			List<Set<String>> works = requestWithRetry(
+					.map(CategoryPageParsed::parse);
+			CategoryPageParsed cateInfos = requestWithRetry(
 				singleProvider,
 				() -> log.info("try to request category page <{}>.", currCate),
 				() -> log.warn("failed to request category page <{}>.", currCate)
 			);
-			if (works == null)
+			if (cateInfos == null)
 			{
-				works = Collections.emptyList();
+				cateInfos = CategoryPageParsed.EMPTY_RESULT;
 			}
-			Set<String> subCategories = works.get(0);
-			Set<String> pages = works.get(1);
-			queue.addAll(subCategories);
-			res.addAll(pages);
+			queue.addAll(cateInfos.getNextPagePaths());
+			queue.addAll(cateInfos.getSubCategories());
+			res.addAll(cateInfos.getSubPages());
 		}
 		return res;
 	}
-
 
 	/**
 	 * 读取配置文件。
@@ -189,22 +185,18 @@ public class Main02
 				}
 				onFail.run();
 			}
-			catch (Exception ignored)
-			{
-				// 无视异常，并进入下一轮重试。
-			}
-			finally
+			catch (Exception e)
 			{
 				log.warn(
 					"Failed to request data. " +
 					"Thread will sleep for [{}] milliseconds in epoch [{}].",
-					waitInterval, epoch
+					waitInterval, epoch, e
 				);
 				try
 				{
 					Thread.sleep(waitInterval);
 				}
-				catch (InterruptedException e)
+				catch (InterruptedException e_)
 				{
 					waitInterval = Long.MAX_VALUE;
 				}
