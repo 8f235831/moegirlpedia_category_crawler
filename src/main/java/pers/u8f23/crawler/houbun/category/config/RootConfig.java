@@ -13,7 +13,7 @@ public class RootConfig
 	private String outputFilePath;
 	private String compressedFilePath;
 	private String exceptionTraceFilePath;
-	private int retryTimes;
 	private int bufferSize;
+	private int requestIntervalTime;
 	private EmailConfig emailConfig;
 }

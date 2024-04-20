@@ -27,7 +27,8 @@ public class HttpUtils
 {
 	public static final int HOME_SITE_TIME_OUT = 3;
 	public static final String HOME_SITE_BASE_URL = "https://zh.moegirl.org.cn";
-	public static final String MIRROR_SITE_BACKUP_URL = "https://moegirl.uk/Special:%E5%AF%BC%E5%87%BA%E9%A1%B5%E9%9D%A2";
+	public static final String MIRROR_SITE_BACKUP_URL =
+		"https://moegirl.uk/Special:%E5%AF%BC%E5%87%BA%E9%A1%B5%E9%9D%A2";
 
 	private static final Retrofit HOME_SITE_SERVICE_CREATOR;
 	public static final OkHttpClient MIRROR_SITE_CLIENT;
@@ -60,19 +61,18 @@ public class HttpUtils
 	}
 
 	@NonNull
-	public static Set<String> parseRawHtmlCategoryPage(Response<ResponseBody> rawResponse)
+	public static List<Set<String>> parseRawHtmlCategoryPage(Response<ResponseBody> rawResponse)
 	{
-		Set<String> resultSet = new HashSet<>();
 		if (rawResponse == null)
 		{
-			return resultSet;
+			return List.of(Collections.emptySet(), Collections.emptySet());
 		}
 		String content = null;
 		try (ResponseBody body = rawResponse.body())
 		{
 			if (body == null)
 			{
-				return resultSet;
+				return List.of(Collections.emptySet(), Collections.emptySet());
 			}
 			content = body.string();
 		}
@@ -81,12 +81,13 @@ public class HttpUtils
 		}
 		if (content == null)
 		{
-			return resultSet;
+			return List.of(Collections.emptySet(), Collections.emptySet());
 		}
 		Document document = Jsoup.parse(content);
-		resultSet.addAll(findAllLinks(document.select("#mw-subcategories").first()));
-		resultSet.addAll(findAllLinks(document.select("#mw-pages").first()));
-		return resultSet;
+		return List.of(
+			new HashSet<>(findAllLinks(document.select("#mw-subcategories").first())),
+			new HashSet<>(findAllLinks(document.select("#mw-pages").first()))
+		);
 	}
 
 	public static <T> T parseResponse(Response<T> rawResponse)

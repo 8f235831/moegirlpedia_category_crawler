@@ -37,7 +37,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
 
     // 网络请求
-    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.7.2'
     implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.10.0'
@@ -49,7 +49,7 @@ dependencies {
     implementation 'com.sun.mail:jakarta.mail:2.0.1'
 
     // https://mvnrepository.com/artifact/org.apache.commons/commons-compress
-    implementation 'org.apache.commons:commons-compress:1.23.0'
+    implementation 'org.apache.commons:commons-compress:1.24.0'
     // https://mvnrepository.com/artifact/org.tukaani/xz
     implementation 'org.tukaani:xz:1.9'
 

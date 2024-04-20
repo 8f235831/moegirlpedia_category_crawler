@@ -41,7 +41,7 @@ public class Main
 			return;
 		}
 		log.info("Success to load config:{}", new Gson().toJson(config));
-		HoubunCollector collector = new HoubunCollector(config.getRetryTimes());
+		HoubunCollector collector = new HoubunCollector(0);
 		Crawler
 			.builder()
 			.backupListCollector(collector.single())

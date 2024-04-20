@@ -80,18 +80,18 @@ public class HoubunCollector
 				.observeOn(Schedulers.computation())
 				.map(HttpUtils::parseRawHtmlCategoryPage)
 				.retry(retryTimes)
-				.doOnSuccess(set -> {
-					set.forEach(i -> {
-						submitTask(
-							new Task(
-								i,
-								task.inRootCate,
-								false
-							), emitter);
-						emitter.onNext(i);
-					});
-					accessLockedField(() -> pages.addAll(set));
-				})
+//				.doOnSuccess(set -> {
+//					set.forEach(i -> {
+//						submitTask(
+//							new Task(
+//								i,
+//								task.inRootCate,
+//								false
+//							), emitter);
+//						emitter.onNext(i);
+//					});
+//					accessLockedField(() -> pages.addAll(set));
+//				})
 				.doFinally(() -> accessLockedField(() -> {
 					visited.add(path);
 					activeTasks.remove(path);
