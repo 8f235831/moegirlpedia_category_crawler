@@ -16,4 +16,5 @@ public class RootConfig
 	private int bufferSize;
 	private int requestIntervalTime;
 	private EmailConfig emailConfig;
+	private boolean printExceptionsToLog;
 }

@@ -43,6 +43,9 @@ public class CategoryPageParsed
 	{
 		if (rawResponse == null)
 		{
+			throw new RuntimeException();
+		}
+		if(rawResponse.code() == 404){
 			return EMPTY_RESULT;
 		}
 		String content = null;
@@ -50,7 +53,7 @@ public class CategoryPageParsed
 		{
 			if (body == null)
 			{
-				return EMPTY_RESULT;
+				throw new RuntimeException();
 			}
 			content = body.string();
 		}
@@ -59,7 +62,7 @@ public class CategoryPageParsed
 		}
 		if (content == null)
 		{
-			return EMPTY_RESULT;
+			throw new RuntimeException();
 		}
 		Document document = Jsoup.parse(content);
 		CategoryPageParsed res = new CategoryPageParsed();

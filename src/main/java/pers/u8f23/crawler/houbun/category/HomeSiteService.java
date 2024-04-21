@@ -6,7 +6,6 @@ import pers.u8f23.crawler.houbun.category.response.ApiBaseResponse;
 import pers.u8f23.crawler.houbun.category.response.Query;
 import retrofit2.Response;
 import retrofit2.http.GET;
-import retrofit2.http.Path;
 import retrofit2.http.Url;
 
 /**
@@ -15,8 +14,8 @@ import retrofit2.http.Url;
  */
 public interface HomeSiteService
 {
-	@GET ("/{title}")
-	Single<Response<ResponseBody>> get(@Path ("title") String pageTitle);
+	@GET ("/index.php")
+	Single<Response<ResponseBody>> get(@retrofit2.http.Query ("title") String pageTitle);
 	@GET
 	Single<Response<ResponseBody>> getUrl(@Url String url);
 	@GET ("/api.php?action=query&prop=categories&format=json")
