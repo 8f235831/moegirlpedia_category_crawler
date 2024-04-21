@@ -1,6 +1,6 @@
 ## 萌摆备份程序
 
-适用于芳文专题条目的自动化备份程序。源程序使用模块化设计，因此可以改造后用于备份其它条目。
+适用于芳文专题条目的自动化备份程序。
 
 程序功能同时依赖于萌百本站的页面服务与其镜像站（[moegirl.uk](https://moegirl.uk )）的页面导出服务。
 
@@ -32,8 +32,8 @@
   "outputFilePath": "/hdd/mgp-houbun-backup/backup_%s.xml",
   "compressedFilePath": "/hdd/mgp-houbun-backup/backup_%s.7z",
   "exceptionTraceFilePath": "/hdd/mgp-houbun-backup/trace_%s.txt",
-  "retryTimes": 3,
   "bufferSize": 2048,
+  "requestIntervalTime": 1000,
   "emailConfig": {
     "emailHost": "example.com",
     "transportType": "smtp",
@@ -49,7 +49,8 @@
         "sendErrorStackTrace": true
       }
     ]
-  }
+  },
+  "printExceptionsToLog": true
 }
 ```
 
@@ -63,10 +64,10 @@
     compressedFilePath: string;
     // 错误文件的输出路径。其中如果包含了"%s"，则会替换为时间戳。
     exceptionTraceFilePath: string;
-    // 请求失败重试次数。
-    retryTimes: number;
     // 缓冲区大小，推荐2-4K。
     bufferSize: number;
+    // 网络请求等待时间初始值，以毫秒计。
+    requestIntervalTime: number;
     // 邮件配置。
     emailConfig: {
         // 邮件服务器地址。
@@ -101,6 +102,12 @@
 * 对不同访问过程的代理功能支持；
 
 ### 更新记录
+
+#### 1.2
+
+* 现在网络请求仅支持单线程进行，不再支持并发请求，同时在两次相邻的网络请求间将强制插入等待时间；
+* 基于指数退避算法，实现了可靠的网络自动重传功能；
+* 修复了分类页面不支持分页数据的问题；
 
 #### 1.1
 

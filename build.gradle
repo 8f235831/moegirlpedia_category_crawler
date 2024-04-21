@@ -10,7 +10,7 @@ plugins {
 }
 
 group 'pers.u8f23.crawler.houbun.category'
-version '1.1-SNAPSHOT'
+version '1.2-SNAPSHOT'
 
 apply from: './define.gradle'
 //noinspection GroovyAssignabilityCheck
